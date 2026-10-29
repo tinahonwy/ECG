@@ -203,7 +203,7 @@ details.more .kv{margin-top:8px}
 .segctl button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.12)}
 .dropbtns{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
 .librows{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px}
-.librow{display:grid;grid-template-columns:150px minmax(0,1.2fr) minmax(0,1.4fr);gap:12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px}
+.librow{display:grid;grid-template-columns:150px minmax(0,1.2fr) minmax(0,1.4fr) auto;gap:12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px}
 .librow:last-child{border-bottom:0}
 .librow:hover{background:var(--panel2)}
 .librow.cur{background:var(--accent-soft)}
@@ -211,6 +211,10 @@ details.more .kv{margin-top:8px}
 .librow .ln{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .librow .lc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .librow .lc.ok{color:var(--ok)}
+.librow .rm{height:24px;padding:0 9px;font-size:11.5px;color:var(--muted);border-color:transparent;background:transparent;opacity:.55}
+.librow:hover .rm{opacity:1;border-color:var(--line)}
+.librow .rm:hover{color:var(--bad);border-color:var(--bad)}
+.librow .lc .rm{height:20px;padding:0 6px;margin-left:6px;vertical-align:1px}
 .librow .lc.guess{color:var(--hold)}
 .libnote{padding:8px 12px;font-size:12px;color:var(--hold)}
 @media (max-width:760px){.librow{grid-template-columns:1fr}}
@@ -1161,9 +1165,11 @@ function renderLib(){
   $("libDirs").textContent = `一般 CSV 資料夾：${LIB.dirs.main || "（未開啟）"}（${LIB.mains.length} 個）　·　校正 CSV 資料夾：${LIB.dirs.cal || "（未開啟）"}（${LIB.cals.length} 個）`;
   $("libRows").innerHTML = LIB.mains.map((m, i) => {
     const c = m.cals[0], dt = c && m.t != null ? Math.round((c.t - m.t) / 1000) : null;
-    const cal = c ? `<span class="lc${c.how === "time" ? " ok" : " guess"}" title="${esc(c.name)}">${c.how === "time" ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${c.how === "time" ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}</span>`
+    const cal = c ? `<span class="lc${c.how === "time" ? " ok" : " guess"}" title="${esc(c.name)}">${c.how === "time" ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${c.how === "time" ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}` +
+                    `<button type="button" class="rm" data-rmc="${LIB.cals.indexOf(c)}" title="把這個校正 CSV 從清單移除（電腦裡的檔案不會被刪除）">✕</button></span>`
                   : `<span class="lc">無校正</span>`;
-    return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>${cal}</div>`;
+    return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>${cal}` +
+           `<button type="button" class="rm" data-rm="${i}" title="從清單移除（電腦裡的檔案不會被刪除）">移除</button></div>`;
   }).join("") + (LIB.unpaired.length ? `<div class="libnote">找不到對應主檔的校正 CSV（它的開始時間對不上任何一筆主檔）：${LIB.unpaired.map(c => esc(c.name)).join("、")}</div>` : "");
   const i = LIB.mains.indexOf(curEntry);
   $("libPrev").disabled = i <= 0; $("libNext").disabled = i < 0 || i >= LIB.mains.length - 1;
@@ -1175,7 +1181,22 @@ async function loadEntry(m){
   else { calName = ""; calText = null; }
   loadFile(m.file);
 }
-$("libRows").addEventListener("click", e => { const r = e.target.closest(".librow"); if (r) loadEntry(LIB.mains[+r.dataset.i]); });
+// 從清單移除：只是不顯示，電腦裡的檔案完全不動（重新開資料夾就會再出現）
+$("libRows").addEventListener("click", e => {
+  const rm = e.target.closest(".rm");
+  if (rm){
+    e.stopPropagation();
+    if (rm.dataset.rm != null){
+      const m = LIB.mains[+rm.dataset.rm]; LIB.mains.splice(+rm.dataset.rm, 1);
+      if (m === curEntry) curEntry = null;            // 畫面上的資料保留，只是不在清單裡
+    } else {
+      const c = LIB.cals[+rm.dataset.rmc]; LIB.cals.splice(+rm.dataset.rmc, 1);
+      if (curEntry && curEntry.cals.includes(c) && CAL && calName === c.name) $("calClear").click();
+    }
+    pairLib(); renderLib(); return;
+  }
+  const r = e.target.closest(".librow"); if (r) loadEntry(LIB.mains[+r.dataset.i]);
+});
 $("libPrev").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i > 0) loadEntry(LIB.mains[i-1]); };
 $("libNext").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i >= 0 && i < LIB.mains.length - 1) loadEntry(LIB.mains[i+1]); };
 // 拖進來的資料夾要逐層讀出檔案
