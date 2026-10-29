@@ -93,7 +93,7 @@ body:not(.loaded) .grid,body:not(.loaded) #imuCard{display:none}
 #prog>div{height:100%;width:0;background:var(--accent);transition:width .15s}
 
 /* ---------- 圖表區 */
-.grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
 @media (max-width:980px){.grid{grid-template-columns:1fr}}
 canvas{display:block;width:100%;touch-action:pan-y}
 #wave{cursor:grab}
@@ -131,6 +131,60 @@ details.note summary::before{content:"▸ ";}
 details.note[open] summary::before{content:"▾ ";}
 details.note p{margin:6px 0 0;line-height:1.6}
 @media (max-width:640px){.top{position:static}h1{font-size:14px}.tag{display:none}.clock{min-width:0}.readout .big{font-size:34px}.side{position:static}}
+
+/* ---------- 精簡版面 */
+.setup{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.4fr) auto;gap:12px;align-items:stretch}
+@media (max-width:980px){.setup{grid-template-columns:1fr}}
+body:not(.loaded) .setup,body:not(.loaded) .grid,body:not(.loaded) #imuCard{display:none}
+.step{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);min-width:0}
+.stepn{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:12px;display:grid;place-items:center;flex:none}
+#calStep.done .stepn{background:var(--ok);color:#fff}
+#calStep.warn .stepn{background:var(--hold);color:#fff}
+.stepbody{flex:1;min-width:0}
+.steplbl{font-size:11.5px;color:var(--muted)}
+.opt{font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:0 6px;margin-left:4px}
+.stepval{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stepsub{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#calStep.warn .stepsub{color:var(--hold)}
+.calat{display:none;margin-top:4px;font-size:12px}
+#calStep.has .calat{display:inline-flex}
+.calat input{width:78px;height:26px}
+.settings{display:block;padding:0}
+.settings summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;white-space:nowrap}
+.settings:not([open]) summary{height:100%}
+.settings summary::-webkit-details-marker{display:none}
+.settings[open]{grid-column:1/-1}
+.setgrid{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:0 16px 14px}
+.heros{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hero{display:flex;align-items:baseline;gap:4px}
+.readout .big{font:700 52px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.03em}
+.big2{font:700 34px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}
+.unit{color:var(--muted);font-size:14px;font-weight:600}
+#roStatus{margin-top:10px}
+.reason{margin-top:6px;font-size:12px;color:var(--muted)}
+.reason:empty{display:none}
+details.more{margin-top:12px;font-size:12.5px}
+details.more summary{cursor:pointer;color:var(--muted);font-size:12px;list-style:none}
+details.more summary::before{content:"▸ "}
+details.more[open] summary::before{content:"▾ "}
+details.more .kv{margin-top:8px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tv{font:700 20px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px}
+.stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat3 .tv{font-size:18px}
+.hint{display:block;font-size:11.5px;color:var(--faint);margin-top:6px}
+#prog{margin-top:0}
+#calStep:not(.has){border:1.5px dashed var(--accent);background:var(--accent-soft)}
+#calStep:not(.has) .steplbl{color:var(--accent);font-weight:600}
+#calStep.over{border:1.5px dashed var(--accent);background:var(--accent-soft)}
+.side{position:static}
+#imuCard .cardhead{margin-bottom:8px}
+#imState{font-size:11.5px;text-align:right}
+.formula{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.flbl{color:var(--muted);font-size:12px}
+.flbl select{flex:1}
+.ftext{margin-top:8px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
 </style>
 </head>
 <body>
@@ -138,9 +192,8 @@ details.note p{margin:6px 0 0;line-height:1.6}
   <div class="topin">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></div>
-      <h1>胸口 SpO2 波形回放</h1><span class="tag">ChestSpO2Verified 離線重算 · 檔案只在瀏覽器內處理，不會上傳</span>
+      <h1>胸口 SpO2 波形回放</h1><span class="tag">檔案只在瀏覽器內處理，不會上傳</span>
     </div>
-    <div class="filechip"><b id="fileName">--</b><button class="ghost" id="openBtn" type="button" style="height:24px;padding:0 8px">換檔案</button></div>
     <button id="export" disabled>匯出每秒結果 CSV</button>
   </div>
   <div class="transport">
@@ -149,95 +202,84 @@ details.note p{margin:6px 0 0;line-height:1.6}
     <input id="seek" type="range" min="0" max="1000" value="0" step="1" disabled aria-label="時間">
     <label class="seg">速度 <select id="speed"><option>0.5</option><option selected>1</option><option>2</option><option>5</option><option>10</option><option>30</option></select>×</label>
     <label class="seg">視窗 <select id="win"><option>5</option><option selected>10</option><option>20</option><option>30</option><option>60</option></select>秒</label>
-    <label class="seg">波形 <select id="filt"><option value="raw">原始</option><option value="bp" selected>帶通（同 App）</option></select></label>
   </div>
 </div>
 <main>
-  <div class="card">
-    <div id="drop"><strong>把 App 錄製的 CSV 拖到這裡</strong>或點這裡選檔案 · 新舊版 CSV 都支援<input id="file" type="file" accept=".csv,text/csv" class="hide"></div>
-    <div class="row" style="margin-top:12px">
-      <label>公式 <select id="profile">
-        <option value="CHEST_BODY">胸口裝置-貼胸口（CHEST_BODY）</option>
-        <option value="CHEST">胸口裝置-手指貼（CHEST）</option>
-        <option value="FINGER">手指（FINGER）</option></select></label>
-      <label>穩定期 <input id="settle" type="number" min="0" max="120" value="20"> 秒</label>
-      <span class="divider"></span>
-      <label class="chk"><input id="useEcg" type="checkbox" checked> 使用 ECG</label>
-      <label class="chk" title="Kotlin 註解建議掉封包時呼叫 reset()；App 實際是否如此請確認。只對新版 CSV 有效"><input id="resetGap" type="checkbox"> 掉包時 reset()</label>
-      <span class="divider"></span>
-      <button id="rerun" disabled>重新計算</button>
+  <div id="drop"><strong>把 App 錄製的 CSV 拖到這裡</strong>或點這裡選檔案 · 之後可以再加入校正 CSV<input id="file" type="file" accept=".csv,text/csv" class="hide"></div>
+
+  <div class="setup">
+    <div class="step">
+      <div class="stepn">1</div>
+      <div class="stepbody"><div class="steplbl">原始資料</div><div class="stepval" id="fileName">--</div><div class="stepsub" id="info"></div></div>
+      <button class="ghost" id="openBtn" type="button">換檔案</button>
     </div>
-    <div id="info"></div>
-    <div class="calbar" style="margin:12px 0 0">
-      <span class="calicon" style="font-size:12.5px;color:var(--ink);font-weight:600">IMU 校正</span>
+    <div class="step" id="calStep">
+      <div class="stepn">2</div>
+      <div class="stepbody"><div class="steplbl">校正 CSV <span class="opt">選填</span></div>
+        <div class="stepsub" id="calInfo">從校正那一刻開始錄的檔案，上傳後會自動找到開始時間</div>
+        <label class="calat" id="calAt">從 <input id="calStart" class="num" type="number" step="0.1" min="0" disabled> 秒起使用</label></div>
       <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
-      <button id="calBtn" type="button" disabled title="先載入主 CSV">上傳校正 CSV</button>
-      <label>從 <input id="calStart" class="num" type="number" step="0.5" min="0" style="width:86px" disabled> 秒起改用</label>
+      <button id="calBtn" type="button" disabled>上傳</button>
       <button id="calClear" class="ghost" type="button" disabled>移除</button>
-      <div id="calInfo">尚未上傳校正 CSV：整段使用主 CSV 的 IMU 資料。</div>
     </div>
-    <div id="prog"><div></div></div>
+    <details class="step settings">
+      <summary><span class="gear">⚙</span> 計算設定</summary>
+      <div class="setgrid">
+        <label>穩定期 <input id="settle" type="number" min="0" max="120" value="20"> 秒</label>
+        <label class="chk"><input id="useEcg" type="checkbox" checked> 使用 ECG</label>
+        <label class="chk" title="只對新版 CSV 有效"><input id="resetGap" type="checkbox"> 掉包時 reset()</label>
+        <label>波形 <select id="filt"><option value="raw">原始</option><option value="bp" selected>同 App 畫面</option></select></label>
+        <button id="rerun" disabled>重新計算</button>
+      </div>
+    </details>
   </div>
+  <div id="prog"><div></div></div>
 
   <div class="grid">
     <div class="card">
-      <div class="cardhead"><h2>即時波形<small>右緣 = 目前時間</small></h2>
-        <span class="legend"><span><i style="background:var(--ecg)"></i>ECG</span><span><i style="background:var(--ir)"></i>PPG IR</span><span><i style="background:var(--red)"></i>PPG RED</span><span><i style="background:var(--ax)"></i>ACC X</span><span><i style="background:var(--ay)"></i>Y</span><span><i style="background:var(--az)"></i>Z</span><span><i style="background:var(--gap)"></i>掉包</span></span></div>
-      <canvas id="wave" height="460"></canvas>
-      <div class="hint"><span><kbd>空白鍵</kbd> 播放/暫停</span><span><kbd>←</kbd><kbd>→</kbd> 前後 1 秒（<kbd>Shift</kbd> 10 秒）</span><span>拖曳平移</span><span><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + 滾輪或觸控板捏合縮放</span><span><kbd>Shift</kbd> + 滾輪平移</span></div>
-
-      <div class="cardhead" style="margin-top:22px"><h2>整段趨勢<small>每秒結果 · 點擊跳到該時間</small></h2>
-        <span class="legend"><span><b style="background:var(--st-update)"></b>UPDATE</span><span><b style="background:var(--st-hold)"></b>HOLD</span><span><b style="background:var(--st-no)"></b>NO_OUTPUT</span><span><b style="background:var(--st-warm)"></b>WARMUP</span></span></div>
-      <canvas id="trend" height="400"></canvas>
-      <div class="legend" style="margin-top:6px">
-        <span><i style="background:var(--accent)"></i>SpO2_out</span><span><i style="background:var(--muted)"></i>SpO2_raw（單秒）</span>
-        <span><i style="background:var(--ir)"></i>R（單秒）</span><span><i style="background:var(--accent)"></i>R_out</span><span><i style="background:var(--az)"></i>R_C_out（方法 C）</span>
-        <span><i style="background:var(--red)"></i>驗證 HR</span><span><i style="background:var(--ecg)"></i>PPG HR</span>
-      </div>
+      <canvas id="wave" height="440"></canvas>
+      <div class="hint">拖曳平移 · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>＋滾輪縮放 · <kbd>空白鍵</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 前後 1 秒 · <span style="color:var(--gap)">紅色虛線 = 掉包</span></div>
     </div>
     <div class="side">
       <div class="card readout">
-        <div class="lbl">SpO2（%）</div>
-        <div class="spo2"><div class="big" id="roSpo2">--</div></div>
+        <div class="heros">
+          <div><div class="lbl">SpO2</div><div class="hero"><span class="big num" id="roSpo2">--</span><span class="unit">%</span></div></div>
+          <div><div class="lbl">心率</div><div class="hero"><span class="big2 num" id="roHr">--</span><span class="unit">bpm</span></div></div>
+        </div>
         <div id="roStatus"></div>
-        <div class="kv">
-          <div>R_out</div><div id="roR">--</div>
-          <div>R（單秒）</div><div id="roR1">--</div>
-          <div>R_C_out</div><div id="roRC">--</div>
-          <div>驗證 HR</div><div id="roHr">--</div>
-          <div>PPG HR</div><div id="roHrP">--</div>
-          <div>方法</div><div id="roMethod">--</div>
-          <div>ECG</div><div id="roEcg">--</div>
-          <div>原因</div><div id="roReason">--</div>
-          <div>視窗中心</div><div id="roTc">--</div>
+        <div class="reason" id="roReason"></div>
+        <div class="formula">
+          <label class="flbl">公式 <select id="profile">
+            <option value="CHEST_BODY">胸口裝置-貼胸口</option>
+            <option value="CHEST">胸口裝置-手指貼</option>
+            <option value="FINGER">手指</option></select></label>
+          <div class="ftext num" id="formulaText"></div>
         </div>
       </div>
-      <div class="card stats" id="stats"><div class="lbl">整段統計</div><div class="sub">載入 CSV 後顯示</div></div>
+    <div class="card" id="imuCard">
+      <div class="cardhead"><h2>姿態</h2><span class="sub" id="imState">--</span></div>
+      <div>
+        <canvas id="gl" height="250"></canvas>
+        <div>
+          <div class="tiles" style="margin-top:10px">
+            <div class="tile"><div class="lbl">Roll</div><div class="tv num" id="imRoll">--</div></div>
+            <div class="tile"><div class="lbl">Pitch</div><div class="tv num" id="imPitch">--</div></div>
+            <div class="tile"><div class="lbl">Yaw</div><div class="tv num" id="imYaw">--</div></div>
+          </div>
+          <details class="more"><summary>詳細數值</summary>
+            <div class="kv">
+              <div>bias</div><div id="imBias">--</div>
+              <div>q (w,x,y,z)</div><div id="imQ">--</div>
+              <div>ACC (mg)</div><div id="imAcc">--</div>
+              <div>GYRO (°/s)</div><div id="imGyro">--</div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
     </div>
   </div>
 
-  <div class="card" id="imuCard">
-    <div class="cardhead"><h2>IMU 3D 姿態<small>Madgwick，與 imu_cal.py / App fuseImu 相同</small></h2></div>
-    <div class="imugrid">
-      <canvas id="gl" height="420"></canvas>
-      <div class="readout">
-        <div class="kv" id="imuKv" style="margin-top:0">
-          <div>狀態</div><div id="imState">--</div>
-          <div>bias 來源</div><div id="imBias">--</div>
-          <div>q (w,x,y,z)</div><div id="imQ">--</div>
-          <div>Roll</div><div id="imRoll">--</div>
-          <div>Pitch</div><div id="imPitch">--</div>
-          <div>Yaw</div><div id="imYaw">--</div>
-          <div>ACC (mg)</div><div id="imAcc">--</div>
-          <div>GYRO (°/s)</div><div id="imGyro">--</div>
-        </div>
-        <details class="note"><summary>說明</summary>
-          <p>校正 CSV 是從校正那一刻才開始錄。在最上方「IMU 校正」上傳後，會自動在主 CSV 裡找對應時間點（先逐筆比對 PPG 原始值；沒有 PPG 就比對 |ACC|、|GYRO| 波形），從那之後的姿態改用校正 CSV（含其 GyroBias）。對不準就直接改秒數。</p>
-          <p>模型方向與 Python 腳本相同：IMU 四元數軸重映射 (q0, q2, −q1, q3)、轉 180° 背對鏡頭、畫面 −90° 旋轉。Roll/Pitch/Yaw 由原始四元數換算（ZYX）。</p>
-        </details>
-      </div>
-    </div>
-  </div>
 </main>
 
 <script id="imu-src">
@@ -768,6 +810,18 @@ function sosfilt(sos, x){ // 單向（與 App 即時濾波相同），扣掉第�
     y[i]=v; }
   return y;
 }
+// 同 App 畫面（DataLogViewModel.insertECG）：ADC → mV（VREF 1000 mV、GAIN 20、17 bit），0.05 Hz 一階高通，偏離 > 5 mV 時歸零
+function ecgAppDisplay(x){
+  const y = new Float32Array(x.length), A = 0.99877, K = 1000 / (131072 * 20);
+  let hx = 0, hy = 0;
+  for (let i=0;i<x.length;i++){
+    const v = Number.isFinite(x[i]) ? x[i] * K : hx;
+    hy = A * (hy + v - hx); hx = v;
+    if (Math.abs(hy) > 5) hy = 0;
+    y[i] = hy;
+  }
+  return y;
+}
 function parse(text){
   text = text.replace(/^﻿/, "");
   const nl = text.indexOf("\n");
@@ -809,9 +863,10 @@ function parse(text){
     imu = {Q: f.Q, valid: f.valid, bias: knownBias, biasRow, calibDoneTime: f.calibDoneTime, finalBias: f.bias};
   }
   return {n, fmt, t, cols, gaps, back, meta, hasEcg, imu,
-    irBp: sosfilt(SOS_PPG, cols.PPG_IR), redBp: sosfilt(SOS_PPG, cols.PPG_RED), ecgBp: hasEcg ? sosfilt(SOS_ECG, cols.ECG) : null};
+    irBp: sosfilt(SOS_PPG, cols.PPG_IR), redBp: sosfilt(SOS_PPG, cols.PPG_RED), ecgBp: hasEcg ? ecgAppDisplay(cols.ECG) : null};
 }
 // ---------------- 校正 CSV（從校正那一刻開始錄）→ 在主 CSV 中找起點
+function lowerBound(a, x){ let lo = 0, hi = a.length; while (lo < hi){ const m = (lo+hi)>>1; if (a[m] < x) lo = m+1; else hi = m; } return lo; }
 function parseCalib(text){
   text = text.replace(/^﻿/, "");
   const nl = text.indexOf("\n");
@@ -836,22 +891,39 @@ function parseCalib(text){
   const T = cols.Time; let ok = Number.isFinite(T[0]);
   for (let i=1;i<n && ok;i++) if (!(T[i] > T[i-1]) || Math.abs(T[i]*FS - Math.round(T[i]*FS)) > 0.01) ok = false;
   const t = new Float64Array(n); for (let i=0;i<n;i++) t[i] = ok ? T[i] - T[0] : i/FS;
-  return {n, t, cols, bias, biasRow, hasPpg: idx[1] >= 0 && idx[2] >= 0};
+  return {n, t, cols, bias, biasRow, hasPpg: idx[1] >= 0 && idx[2] >= 0, T0: T[0], timeOk: ok};
 }
 function alignCalib(C){
   const m = D.cols, n = D.n, c = C.cols;
-  // 1) PPG 原始值逐筆比對（PPG 不受 IMU 校正旋轉影響，同一次錄製的值會完全相同）
-  if (C.hasPpg){
-    const K = Math.min(256, C.n);
-    let k0 = 0;  // 找校正 CSV 中 PPG 有在變化的一段當比對樣板，避免拿常數（離身全 0）去比
-    while (k0 + K <= C.n){ let lo = Infinity, hi = -Infinity; for (let k=0;k<K;k++){ const v = c.PPG_IR[k0+k]; if (v<lo) lo=v; if (v>hi) hi=v; } if (hi > lo) break; k0 += K; }
-    if (k0 + K <= C.n && Number.isFinite(c.PPG_IR[k0])){
-      const a0 = c.PPG_IR[k0], b0 = c.PPG_RED[k0];
-      for (let i=0;i+K<=n;i++){
-        if (m.PPG_IR[i] !== a0 || m.PPG_RED[i] !== b0) continue;
-        let hit = 0; for (let k=0;k<K;k++) if (m.PPG_IR[i+k] === c.PPG_IR[k0+k]) hit++;
-        if (hit >= 0.9*K) return {row: Math.max(0, i - k0), method: "PPG 原始值完全比對", score: hit/K};
-      }
+  // PPG 樣板：校正 CSV 中 PPG 有在變化的一小段（不受 IMU 校正旋轉影響，同一次錄製的值會完全相同）
+  const K = Math.min(64, C.n);
+  let k0 = -1;
+  if (C.hasPpg) for (let st=0; st+K<=C.n; st+=K){
+    let lo = Infinity, hi = -Infinity, fin = true;
+    for (let k=0;k<K;k++){ const v = c.PPG_IR[st+k]; if (!Number.isFinite(v)){ fin = false; break; } if (v<lo) lo=v; if (v>hi) hi=v; }
+    if (fin && hi > lo){ k0 = st; break; }
+  }
+  const match = i => { if (k0 < 0 || i < 0 || i + K > n) return 0; let h = 0;
+    for (let k=0;k<K;k++) if (m.PPG_IR[i+k] === c.PPG_IR[k0+k] && m.PPG_RED[i+k] === c.PPG_RED[k0+k]) h++; return h/K; };
+  // 1) Time：校正 CSV 的 Time 和主 CSV 是同一條時間軸（例如從 28.71 s 開始）→ 直接找，再用 PPG 在 ±2 秒內確認
+  if (C.timeOk && D.fmt === "new" && C.T0 >= D.t[0] - 1 && C.T0 <= D.t[n-1]){
+    const i0 = lowerBound(D.t, C.T0 - 0.5/FS);
+    if (k0 < 0 && C.T0 >= 1) return {row: i0, method: "依 Time", score: NaN, ok: true};
+  }
+  if (k0 >= 0 && C.timeOk && D.fmt === "new" && C.T0 >= D.t[0] - 1 && C.T0 <= D.t[n-1]){
+    const i0 = lowerBound(D.t, C.T0 - 0.5/FS);
+    const it = lowerBound(D.t, C.T0 + C.t[k0] - 0.5/FS);
+    let best = it, bs = 0;
+    for (let s=0; s<=2*FS && bs < 1; s++) for (const d of s ? [s, -s] : [0]){ const sc = match(it + d); if (sc > bs){ bs = sc; best = it + d; } }
+    if (bs >= 0.8) return {row: Math.max(0, i0 + (best - it)), method: "Time＋PPG 確認", score: bs, ok: true};
+    return {row: i0, method: "依 Time（PPG 對不上，請確認是否為同一次錄製）", score: bs, ok: false};
+  }
+  // 2) Time 不能用（舊版 CSV 或超出範圍）→ 整段搜尋 PPG 原始值
+  if (k0 >= 0){
+    const a0 = c.PPG_IR[k0], b0 = c.PPG_RED[k0];
+    for (let i=0;i+K<=n;i++){
+      if (m.PPG_IR[i] !== a0 || m.PPG_RED[i] !== b0) continue;
+      const sc = match(i); if (sc >= 0.8) return {row: Math.max(0, i - k0), method: "PPG 原始值比對", score: sc, ok: true};
     }
   }
   // 2) |ACC|、|GYRO|（對旋轉不變）降採樣到 32 Hz 後做正規化互相關
@@ -872,7 +944,7 @@ function alignCalib(C){
     }
   }
   let best = 0; for (let o=1;o<corr.length;o++) if (corr[o] > corr[best]) best = o;
-  return {row: best*DS, method: "|ACC|、|GYRO| 波形互相關", score: corr[best]};
+  return {row: best*DS, method: "|ACC|、|GYRO| 波形互相關", score: corr[best], ok: corr[best] >= 0.5};
 }
 function calib(text){
   if (!D) throw new Error("請先載入主 CSV");
@@ -921,7 +993,13 @@ let CAL = null, calText = null, calName = "", calStart = null;   // 校正 CSV
 let winSec = 10;   // 波形視窗秒數（連續值，滾輪/捏合平滑縮放）
 let cur = 0, playing = false, lastTs = 0;
 const FONT = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif';
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const _css = new Map();
+const css = n => { let v = _css.get(n); if (v === undefined){ v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); _css.set(n, v); } return v; };
+// 文字沒變就不寫 DOM（避免每幀重排版）
+const txt = (id, s) => { const el = $(id); if (el.textContent !== s) el.textContent = s; };
+// 平滑動畫狀態：縱軸範圍、縮放
+let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false, ySnap = true, lastDrawCur = 0;
+const yEase = [];
 
 // ---------------- 檔案
 const drop = $("drop"), fileIn = $("file");
@@ -942,23 +1020,37 @@ function loadFile(f){
   rd.onload = () => worker.postMessage({type:"load", text: rd.result, opt: opts()});
   rd.readAsText(f);
 }
+function showFormula(){
+  const P = CS.PROFILES[$("profile").value], n = v => Math.abs(v).toFixed(4).replace(/\.?0+$/, "");
+  const R = P.rOffset ? `(R − ${P.rOffset})` : "R";
+  $("formulaText").textContent = `SpO2 = ${n(P.a)}·${R}² ${P.b < 0 ? "−" : "+"} ${n(P.b)}·${R} ${P.c < 0 ? "−" : "+"} ${n(P.c)}`;
+}
+showFormula(); $("profile").addEventListener("change", showFormula);
 $("rerun").onclick = () => { if (D){ showProg(0); worker.postMessage({type:"run", opt: opts()}); } };
 ["profile","useEcg","resetGap"].forEach(id => $(id).addEventListener("change", () => $("rerun").click()));
 $("settle").addEventListener("change", () => $("rerun").click());
 
 // ---------------- 校正 CSV
-function sendCalib(){ calUi("校正 CSV 處理中…"); worker.postMessage({type:"calib", text: calText}); }
-function calUi(msg){
+function sendCalib(){ calUi("處理中…"); worker.postMessage({type:"calib", text: calText}); }
+const CAL_HINT = "從校正那一刻開始錄的檔案，上傳後會自動找到開始時間";
+function calUi(msg, full, state){
   $("calStart").disabled = $("calClear").disabled = !CAL;
-  $("calStart").value = CAL && calStart != null ? calStart.toFixed(1) : "";
-  $("calInfo").textContent = msg || (calText ? $("calInfo").textContent : "尚未上傳校正 CSV：整段使用主 CSV 的 IMU 資料。");
+  $("calStart").value = CAL && calStart != null ? calStart.toFixed(2) : "";
+  $("calInfo").textContent = msg || (calText ? $("calInfo").textContent : CAL_HINT);
+  $("calInfo").title = full || "";
+  const st = $("calStep"); st.classList.toggle("has", !!CAL); st.classList.toggle("done", state === "ok"); st.classList.toggle("warn", state === "warn");
+  $("calBtn").textContent = CAL ? "換檔案" : "上傳校正 CSV"; $("calBtn").classList.toggle("primary", !CAL);
 }
 $("calBtn").onclick = () => $("calFile").click();
+{ const st = $("calStep");
+  ["dragenter","dragover"].forEach(ev => st.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); st.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => st.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); st.classList.remove("over"); }));
+  st.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (!f || !D) return; calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); }); }
 $("calFile").onchange = () => { const f = $("calFile").files[0]; if (!f || !D) return;
   calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); $("calFile").value = ""; };
 $("calStart").addEventListener("change", e => { if (!CAL) return; const v = parseFloat(e.target.value);
-  if (Number.isFinite(v)){ calStart = Math.max(tMin(), Math.min(tMax(), v)); e.target.value = calStart.toFixed(1); draw(); } });
-$("calClear").onclick = () => { CAL = null; calText = null; calStart = null; calUi("尚未上傳校正 CSV：整段使用主 CSV 的 IMU 資料。"); draw(); };
+  if (Number.isFinite(v)){ calStart = Math.max(tMin(), Math.min(tMax(), v)); e.target.value = calStart.toFixed(2); draw(); } });
+$("calClear").onclick = () => { CAL = null; calText = null; calStart = null; calUi(CAL_HINT); draw(); };
 
 function showProg(f){ $("prog").style.display = "block"; $("prog").firstChild.style.width = (100*f).toFixed(1)+"%"; }
 function hideProg(){ $("prog").style.display = "none"; }
@@ -975,13 +1067,16 @@ worker.onmessage = e => {
     if (!D.hasEcg) s += " · 無 ECG 欄";
     if (D.imu) s += !D.imu.bias ? " · 無 GyroBias（IMU bias 自行估計）" : D.imu.biasRow === 0 ? " · 兩點校正後 IMU CSV（GyroBias 從第一筆有效）" : " · 有 GyroBias（第 " + (D.imu.biasRow+1) + " 筆起；非校正後 CSV）";
     const mt = Object.entries(D.meta).map(([k,v])=>k+"="+v).join("、"); if (mt) s += " · " + mt;
-    $("info").textContent = s.split("\n").slice(1).join("\n");
+    const dur = D.n/FS, mm = Math.floor(dur/60), ss = Math.round(dur - 60*mm);
+    const metaShort = Object.entries(D.meta).map(([k,v]) => k === "Age" ? `${parseFloat(v)} 歲` : k === "Sex" ? ({Male:"男",Female:"女"}[v] || v) : v);
+    $("info").textContent = [`${mm} 分 ${ss} 秒`, D.fmt === "new" ? `掉包 ${(100*lost/(D.n+lost)).toFixed(1)}%` : "舊版 CSV", ...metaShort].join(" · ");
+    $("info").title = s.split("\n").slice(1).join("\n");
     $("fileName").textContent = fileName; $("fileName").title = fileName;
     document.body.classList.add("loaded");
     $("resetGap").disabled = D.fmt !== "new";
     ["play","seek","rerun","calBtn"].forEach(id => $(id).disabled = false);
     $("calBtn").title = "";
-    RES = []; resVersion++; CAL = null; calStart = null;
+    RES = []; CAL = null; calStart = null; ySnap = true;
     if (calText) sendCalib(); else calUi();
     draw();
   }
@@ -990,17 +1085,23 @@ worker.onmessage = e => {
     const a = CAL.align;
     calStart = a ? D.t[Math.min(a.row, D.n-1)] : tMin();
     let s = `${calName}：${CAL.n} 樣本（${(CAL.n/FS).toFixed(1)} s）· `;
-    s += a ? `自動對齊到主 CSV 第 ${calStart.toFixed(1)} 秒（${a.method}${a.method.startsWith("PPG") ? "" : `，相關 ${a.score.toFixed(2)}${a.score < 0.5 ? "，信心低，建議手動確認" : ""}`}）`
+    s += a ? `自動對齊到主 CSV 第 ${calStart.toFixed(2)} 秒（${a.method}${Number.isFinite(a.score) ? `，${a.method.includes("互相關") ? "相關" : "PPG 吻合"} ${a.score.toFixed(2)}` : ""}）`
            : "找不到對應位置，先從 0 秒開始，請手動輸入秒數";
     s += CAL.bias ? ` · GyroBias 取自第 ${CAL.biasRow+1} 筆` : " · 校正 CSV 沒有 GyroBias 欄，bias 自行估計";
-    calUi(s); draw();
+    const good = a && a.ok;
+    const how = !a ? "" : a.method.includes("PPG") && a.ok ? "精準對齊" : a.method.startsWith("依 Time") ? "依 Time 對齊" : "波形比對";
+    const short = !a ? `⚠ ${calName}：找不到對應位置，請手動輸入秒數`
+      : good ? `✓ ${calName} · ${how}，第 ${calStart.toFixed(2)} 秒起`
+      : a.method.startsWith("依 Time") ? `⚠ ${calName} · Time 在第 ${calStart.toFixed(2)} 秒，但 PPG 對不上，可能不是同一次錄製`
+      : `⚠ ${calName} · 對齊信心低，請確認秒數`;
+    calUi(short, s, good ? "ok" : "warn"); draw();
   }
-  else if (m.type === "calibError"){ CAL = null; calStart = null; calUi("校正 CSV 錯誤：" + m.msg); draw(); }
+  else if (m.type === "calibError"){ CAL = null; calStart = null; calUi("⚠ " + m.msg, "", "warn"); draw(); }
   else if (m.type === "results"){
-    hideProg(); RES = m.res; resVersion++;
+    hideProg(); RES = m.res;
     RES_T = Float64Array.from(RES, r => D.t[Math.max(0, r.endIdx)]);
     $("export").disabled = false;
-    stats(); draw();
+    draw();
   }
 };
 
@@ -1024,7 +1125,7 @@ function tick(ts){
 }
 $("seek").oninput = e => setCur(tMin() + (e.target.value/1000) * (tMax()-tMin()));
 $("win").addEventListener("change", e => { if (e.target.value !== "custom") setWin(+e.target.value); });
-$("filt").addEventListener("change", draw);
+$("filt").addEventListener("change", () => { ySnap = true; draw(); });
 document.addEventListener("keydown", e => {
   if (!D || /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "range") return;
   if (e.code === "Space"){ e.preventDefault(); $("play").click(); }
@@ -1032,7 +1133,7 @@ document.addEventListener("keydown", e => {
   else if (e.code === "ArrowLeft"){ e.preventDefault(); setCur(cur - (e.shiftKey?10:1)); }
 });
 window.addEventListener("resize", draw);
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { _css.clear(); draw(); });
 
 // 波形拖曳平移 / 滾輪縮放
 const wave = $("wave");
@@ -1047,7 +1148,7 @@ wave.addEventListener("wheel", e => {
   const dx = (e.shiftKey ? e.deltaY : e.deltaX) * unit, dy = e.deltaY * unit;
   if (e.ctrlKey || e.metaKey){
     e.preventDefault(); stop();
-    setWin(winSec * Math.exp(Math.max(-120, Math.min(120, dy)) * 0.004));
+    setWin(winTarget * Math.exp(Math.max(-120, Math.min(120, dy)) * 0.004));
   } else if (e.shiftKey || Math.abs(dx) > Math.abs(dy)){
     e.preventDefault(); stop();
     setCur(cur + dx / Math.max(1, wave.clientWidth - 70) * winSec);
@@ -1055,20 +1156,13 @@ wave.addEventListener("wheel", e => {
 }, {passive:false});
 function setWin(v){
   const maxW = Math.max(1, Math.min(120, tMax() - tMin() || 120));
-  winSec = Math.max(1, Math.min(maxW, v));
-  const sel = $("win"), preset = [...sel.options].find(o => o.value !== "custom" && Math.abs(+o.value - winSec) < 0.05);
+  winTarget = Math.max(1, Math.min(maxW, v));
+  const sel = $("win"), preset = [...sel.options].find(o => o.value !== "custom" && Math.abs(+o.value - winTarget) < 0.05);
   let cu = sel.querySelector('option[value="custom"]');
   if (preset){ sel.value = preset.value; if (cu) cu.remove(); }
-  else { if (!cu){ cu = document.createElement("option"); cu.value = "custom"; sel.appendChild(cu); } cu.textContent = winSec.toFixed(winSec < 10 ? 1 : 0); sel.value = "custom"; }
+  else { if (!cu){ cu = document.createElement("option"); cu.value = "custom"; sel.appendChild(cu); } cu.textContent = winTarget.toFixed(winTarget < 10 ? 1 : 0); sel.value = "custom"; }
   draw();
 }
-// 趨勢點擊跳轉
-const trend = $("trend");
-let tDrag = false;
-const trendSeek = e => { if (!D) return; const r = trend.getBoundingClientRect(), L = 56, W = r.width - L - 14; setCur(tMin() + (e.clientX - r.left - L) / W * (tMax()-tMin())); };
-trend.addEventListener("pointerdown", e => { tDrag = true; trend.setPointerCapture(e.pointerId); trendSeek(e); });
-trend.addEventListener("pointermove", e => tDrag && trendSeek(e));
-trend.addEventListener("pointerup", () => tDrag = false);
 
 // ---------------- 繪圖工具
 function prep(cv){
@@ -1142,7 +1236,7 @@ function drawWave(){
   const L = 56, R = 14, X = {x: L, w: w - L - R};
   const bp = $("filt").value === "bp", c = D.cols;
   const panels = [
-    {label: bp ? "ECG（5–20 Hz 帶通）" : "ECG（原始）", ser: [[bp && D.ecgBp ? D.ecgBp : c.ECG, css("--ecg")]], r: 1, ecg: true},
+    {label: bp ? "ECG（mV · 0.05 Hz 高通，同 App 畫面）" : "ECG（CSV 原始 ADC 值）", ser: [[bp && D.ecgBp ? D.ecgBp : c.ECG, css("--ecg")]], r: 1, ecg: true},
     {label: bp ? "PPG IR（0.8–8 Hz 帶通，向下 = 收縮期）" : "PPG IR（原始）", ser: [[bp ? D.irBp : c.PPG_IR, css("--ir")]], r: 1},
     {label: bp ? "PPG RED（0.8–8 Hz 帶通）" : "PPG RED（原始）", ser: [[bp ? D.redBp : c.PPG_RED, css("--red")]], r: 1},
     {label: "ACC X / Y / Z", ser: [[c.ACC_X, css("--ax")], [c.ACC_Y, css("--ay")], [c.ACC_Z, css("--az")]], r: 1},
@@ -1153,10 +1247,20 @@ function drawWave(){
   for (const p of panels){
     const H = ph * p.r;
     let [lo, hi] = rangeOf(p.ser.map(s=>s[0]), i0, i1);
-    // 帶通暫態（開頭）會把刻度撐爆 → 用 1–99 百分位
-    if (bp && !p.label.startsWith("ACC")) { const v = []; const a = p.ser[0][0]; const st = Math.max(1, Math.floor((i1-i0)/4000));
-      for (let i=i0;i<i1;i+=st) if (Number.isFinite(a[i])) v.push(a[i]); v.sort((a,b)=>a-b);
-      if (v.length > 20){ const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)], pad=(q9-q1)*.15||1; lo = q1-pad; hi = q9+pad; } }
+    // 用 0.5–99.5 百分位：帶通開頭暫態、原始資料偶發的單筆 0（封包錯誤）都不會把刻度撐爆
+    { const v = [], st = Math.max(1, Math.floor((i1-i0)/3000));
+      for (const [a] of p.ser) for (let i=i0;i<i1;i+=st) if (Number.isFinite(a[i])) v.push(a[i]);
+      v.sort((a,b)=>a-b);
+      if (v.length > 20){ const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)], pad = (q9-q1)*.15 || Math.max(1, Math.abs(q9)*.01); lo = q1-pad; hi = q9+pad; } }
+    { const pi = panels.indexOf(p); let e = yEase[pi];
+      if (ySnap || !e || !Number.isFinite(e[0]) || !Number.isFinite(e[1])) e = yEase[pi] = [lo, hi];
+      else {
+        const kUp = 1 - Math.exp(-frameDt / 60), kDn = 1 - Math.exp(-frameDt / 350);
+        e[0] += (lo - e[0]) * (lo < e[0] ? kUp : kDn);
+        e[1] += (hi - e[1]) * (hi > e[1] ? kUp : kDn);
+        if (Math.abs(e[0] - lo) + Math.abs(e[1] - hi) > 0.003 * (hi - lo)) animating = true; else { e[0] = lo; e[1] = hi; }
+      }
+      lo = e[0]; hi = e[1]; }
     frame(ctx, X.x, y, X.w, H, "");
     yAxis(ctx, X.x, y, X.w, H, lo, hi, 3);
     ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, H); ctx.clip();
@@ -1178,114 +1282,21 @@ function drawWave(){
 }
 
 // ---------------- 趨勢
-// 趨勢圖：靜態部分（曲線、狀態底色、刻度、校正標記）只在資料/尺寸/主題改變時重畫，存在離屏畫布；每幀只疊上游標
-let trendCache = null, trendKey = "", resVersion = 0;
-function drawTrend(){
-  const {ctx, w, h} = prep(trend);
-  if (!D) return;
-  const dpr = window.devicePixelRatio || 1;
-  const key = [w, h, dpr, resVersion, calStart, CAL ? CAL.n : 0, css("--bg")].join("|");
-  if (key !== trendKey || !trendCache){
-    trendCache = trendCache || document.createElement("canvas");
-    trendCache.width = Math.round(w*dpr); trendCache.height = Math.round(h*dpr);
-    const c2 = trendCache.getContext("2d"); c2.setTransform(dpr,0,0,dpr,0,0); c2.clearRect(0,0,w,h);
-    drawTrendStatic(c2, w, h); trendKey = key;
-  }
-  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(trendCache, 0, 0); ctx.restore();
-  const L = 56, R = 14, X = {x: L, w: w - L - R}, x0 = tMin(), span = tMax() - x0 || 1, top = 4, bottom = 22;
-  const px = t => X.x + (t - x0) / span * X.w;
-  ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(px(cur - winSec), top, px(cur) - px(cur - winSec), h - top - bottom); ctx.globalAlpha = 1;
-  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), h - bottom); ctx.stroke();
-}
-function drawTrendStatic(ctx, w, h){
-  const L = 56, R = 14, X = {x: L, w: w - L - R}, x0 = tMin(), x1 = tMax(), span = x1 - x0 || 1;
-  const px = t => X.x + (t - x0) / span * X.w;
-  const panels = [
-    {label: "SpO2 (%)", ser: [["spo2Raw", css("--muted"), 1, true], ["spo2Out", css("--accent"), 2]], minSpan: 6},
-    {label: "R", ser: [["r", css("--ir"), 1, true], ["rOut", css("--accent"), 2], ["rCOut", css("--az"), 1.6]], minSpan: 0.1},
-    {label: "HR (bpm)", ser: [["hr", css("--red"), 1.6], ["hrPpg", css("--ecg"), 1.2]], minSpan: 20},
-  ];
-  const gapH = 10, top = 4, bottom = 22, ph = (h - top - bottom - gapH*(panels.length-1)) / panels.length;
-  const stCol = {UPDATE: css("--st-update"), HOLD: css("--st-hold"), NO_OUTPUT: css("--st-no"), WARMUP: css("--st-warm")};
-  let y = top;
-  for (const p of panels){
-    // 範圍：用有效值的 1–99 百分位，避免單秒離群值壓扁曲線
-    const vals = []; for (const r of RES) for (const [k, , , dots] of p.ser) { if (dots) continue; const v = r[k]; if (Number.isFinite(v)) vals.push(v); }
-    vals.sort((a,b)=>a-b);
-    let lo, hi;
-    if (vals.length){ lo = vals[Math.floor(vals.length*.01)]; hi = vals[Math.floor(vals.length*.99)]; } else { lo = 0; hi = 1; }
-    if (hi - lo < p.minSpan){ const m = (hi+lo)/2; lo = m - p.minSpan/2; hi = m + p.minSpan/2; }
-    const pad = (hi-lo)*.1; lo -= pad; hi += pad;
-    // 狀態底色
-    for (let i = 0; i < RES.length; i++){
-      const xa = px(i ? RES_T[i-1] : RES_T[i] - 1), xb = px(RES_T[i]);
-      ctx.fillStyle = stCol[RES[i].status] || "transparent"; ctx.fillRect(xa, y, Math.max(1, xb - xa + .5), ph);
-    }
-    frame(ctx, X.x, y, X.w, ph, "");
-    yAxis(ctx, X.x, y, X.w, ph, lo, hi, 3);
-    ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, ph); ctx.clip();
-    for (const [k, col, lw, dots] of p.ser){
-      const py = v => y + ph - (v - lo)/(hi - lo) * ph;
-      if (dots){ ctx.fillStyle = col; ctx.globalAlpha = .55;
-        for (let i=0;i<RES.length;i++){ const v = RES[i][k]; if (Number.isFinite(v)) ctx.fillRect(px(RES_T[i])-1, py(v)-1, 2, 2); }
-        ctx.globalAlpha = 1; continue; }
-      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); let on = false;
-      for (let i=0;i<RES.length;i++){ const v = RES[i][k];
-        if (!Number.isFinite(v)) { on = false; continue; }
-        if (!on){ ctx.moveTo(px(RES_T[i]), py(v)); on = true; } else ctx.lineTo(px(RES_T[i]), py(v)); }
-      ctx.stroke();
-    }
-    ctx.restore();
-    tagLabel(ctx, p.label, X.x + 8, y + 14);
-    y += ph + gapH;
-  }
-  // 時間軸 + 游標 + 目前視窗
-  ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
-  { const tk = niceTicks(x0, x1, 10), st = tk.length > 1 ? tk[1] - tk[0] : 1, dec = st >= 1 ? 0 : st >= 0.1 ? 1 : 2;
-    for (const v of tk) ctx.fillText(v.toFixed(dec) + " s", px(v), h - 6); }
-  if (CAL && calStart != null){
-    const xc = px(calStart), xe = px(Math.min(tMax(), calStart + CAL.t[CAL.n-1]));
-    ctx.fillStyle = css("--az"); ctx.globalAlpha = .9; ctx.fillRect(xc, h - bottom + 1, Math.max(2, xe - xc), 3); ctx.globalAlpha = 1;
-    ctx.strokeStyle = css("--az"); ctx.setLineDash([4,3]); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(xc, top); ctx.lineTo(xc, h - bottom); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = css("--az"); ctx.font = "600 11px " + FONT; ctx.textAlign = "left"; ctx.fillText("校正 CSV 起點", xc + 4, top + 26);
-  }
-  if (!RES.length){ ctx.fillStyle = css("--muted"); ctx.font = "13px " + FONT; ctx.textAlign = "center"; ctx.fillText("計算中…", w/2, h/2); }
-}
-
 // ---------------- 讀值
 const f = (v, d) => Number.isFinite(v) ? v.toFixed(d) : "--";
 function readout(){
   if (!RES.length || !D) return;
   let i = lowerBound(RES_T, cur + 1e-9) - 1;
-  const set = (id, s) => $(id).textContent = s;
-  if (i < 0){ set("roSpo2", "--"); $("roStatus").innerHTML = ""; return; }
+  const set = txt;
+  if (i < 0){ set("roSpo2", "--"); set("roHr", "--"); if ($("roStatus").innerHTML) $("roStatus").innerHTML = ""; return; }
   const r = RES[i];
   set("roSpo2", Number.isFinite(r.spo2Out) ? `${Math.round(r.spo2Out)}` : "--");
   const col = {UPDATE: css("--ok"), HOLD: css("--hold"), NO_OUTPUT: css("--bad"), WARMUP: css("--warm")}[r.status];
-  $("roStatus").innerHTML = `<span class="badge" style="background:${col}">${r.status}</span>`;
-  set("roR", f(r.rOut, 3)); set("roR1", f(r.r, 4)); set("roRC", f(r.rCOut, 3));
-  set("roHr", f(r.hr, 0) + " bpm"); set("roHrP", f(r.hrPpg, 0) + " bpm");
-  set("roMethod", r.method || "--"); set("roEcg", r.ecgState || "--"); set("roReason", r.reason || "—");
-  set("roTc", r.t.toFixed(1) + " s（演算法時間）");
-}
-function stats(){
-  const cnt = {}; for (const r of RES) cnt[r.status] = (cnt[r.status]||0) + 1;
-  const up = RES.filter(r => r.status === "UPDATE");
-  const so = RES.map(r => r.spo2Out).filter(Number.isFinite).sort((a,b)=>a-b);
-  const md = a => a.length ? (a.length%2 ? a[a.length>>1] : (a[a.length/2-1]+a[a.length/2])/2) : NaN;
-  const ro = up.map(r => r.rOut).sort((a,b)=>a-b), rc = RES.map(r=>r.rCOut).filter(Number.isFinite).sort((a,b)=>a-b);
-  // 最長 HOLD
-  let longest = 0, run = 0; for (const r of RES){ if (r.status === "HOLD") { run++; longest = Math.max(longest, run); } else run = 0; }
-  const reasons = {}; for (const r of RES) if (r.status !== "UPDATE" && r.status !== "WARMUP" && r.reason) for (const s of r.reason.split("、")) reasons[s] = (reasons[s]||0)+1;
-  const top = Object.entries(reasons).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  const n = RES.length - (cnt.WARMUP||0);
-  const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
-  $("stats").innerHTML = `<div class="lbl">整段統計（不含 WARMUP）</div><table>` +
-    row("UPDATE", `${cnt.UPDATE||0}（${n ? (100*(cnt.UPDATE||0)/n).toFixed(0) : 0}%）`) +
-    row("HOLD", `${cnt.HOLD||0}（最長 ${longest} 秒）`) + row("NO_OUTPUT（--）", cnt.NO_OUTPUT||0) +
-    row("SpO2_out 中位數", f(md(so), 1)) + row("SpO2_out 範圍", so.length ? `${so[0].toFixed(1)} ~ ${so[so.length-1].toFixed(1)}` : "--") +
-    row("R_out 中位數", f(md(ro), 3)) + row("R_C_out 中位數", f(md(rc), 3)) +
-    top.map(([k,v]) => row("無效：" + k, v)).join("") + `</table>`;
+  const stName = {UPDATE: "有效", HOLD: "沿用前值", NO_OUTPUT: "無輸出", WARMUP: "暖機中"}[r.status] || r.status;
+  const badge = `<span class="badge" style="background:${col}">${stName}</span>`;
+  if ($("roStatus").innerHTML !== badge) $("roStatus").innerHTML = badge;
+  set("roHr", f(Number.isFinite(r.hr) ? r.hr : r.hrPpg, 0));
+  set("roReason", r.status === "UPDATE" ? "" : (r.reason || ""));
 }
 $("export").onclick = () => {
   const q = v => Number.isFinite(v) ? v : "";
@@ -1396,7 +1407,7 @@ if (GL3){
   }).catch(() => {});
 }
 function drawImu(){
-  if (!GL3){ $("imState").textContent = "這個瀏覽器不支援 WebGL2"; return; }
+  if (!GL3){ txt("imState", "這個瀏覽器不支援 WebGL2"); return; }
   const im = D && D.imu;
   // 目前時間落在校正 CSV 範圍內 → 用校正 CSV；否則用主 CSV
   let src = null;
@@ -1411,28 +1422,34 @@ function drawImu(){
   if (!src){ GL3.render(false, null); ["imState","imBias","imQ","imRoll","imPitch","imYaw","imAcc","imGyro"].forEach(id => $(id).textContent = D ? "（CSV 沒有 ACC/GYRO 欄）" : "--"); return; }
   const i = src.i, q = [src.Q[4*i], src.Q[4*i+1], src.Q[4*i+2], src.Q[4*i+3]], v = !!src.valid[i];
   GL3.render(v, q);
-  const deg = r => (r*180/Math.PI).toFixed(1) + "°";
+  const deg = r => (Math.round(r*180/Math.PI) || 0) + "°";
   const [w, x, y, z] = q;
   const from = src.cal ? "校正 CSV" : (CAL ? "主 CSV（校正開始前）" : "主 CSV");
-  $("imState").textContent = (v ? "有效" : "校正中…（顯示面朝前占位姿態）") + " · " + from;
-  $("imBias").textContent = src.bias ? `${src.cal ? "校正 CSV" : "CSV"} 第 ${src.biasRow+1} 筆：(${src.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` +
+  txt("imState", (v ? "" : "校正中… · ") + "資料來源：" + from);
+  txt("imBias", src.bias ? `${src.cal ? "校正 CSV" : "CSV"} 第 ${src.biasRow+1} 筆：(${src.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` +
     (!src.cal && src.biasRow > 0 ? "（一般 CSV：訊號未套用兩點校正 qCal，姿態為感測器座標，僅供參考）" : "") :
-    (src.calibDoneTime != null ? `自行估計（完成於 t=${src.calibDoneTime.toFixed(2)} s）` : "自行估計（靜止樣本不足，bias 從未有效）");
-  $("imQ").textContent = q.map(a => a.toFixed(4)).join(", ");
-  $("imRoll").textContent = deg(Math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y)));
-  $("imPitch").textContent = deg(Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x)))));
-  $("imYaw").textContent = deg(Math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z)));
+    (src.calibDoneTime != null ? `自行估計（完成於 t=${src.calibDoneTime.toFixed(2)} s）` : "自行估計（靜止樣本不足，bias 從未有效）"));
+  txt("imQ", q.map(a => a.toFixed(4)).join(", "));
+  txt("imRoll", deg(Math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y))));
+  txt("imPitch", deg(Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x))))));
+  txt("imYaw", deg(Math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z))));
   const f1 = a => Number.isFinite(a) ? a.toFixed(1) : "--";
-  $("imAcc").textContent = src.acc.map(a => f1(a[i])).join(", ");
-  $("imGyro").textContent = src.gyro.map(a => Number.isFinite(a[i]) ? a[i].toFixed(2) : "--").join(", ");
+  txt("imAcc", src.acc.map(a => f1(a[i])).join(", "));
+  txt("imGyro", src.gyro.map(a => Number.isFinite(a[i]) ? a[i].toFixed(2) : "--").join(", "));
 }
 
 // 同一幀內多次要求重畫（拖曳滑桿、滾輪、播放）只畫一次
 let drawPending = false;
 function draw(){ if (drawPending) return; drawPending = true; requestAnimationFrame(() => { drawPending = false; drawNow(); }); }
 function drawNow(){
-  drawWave(); drawTrend(); readout(); drawImu();
-  if (D){ $("tnow").innerHTML = `${cur.toFixed(2)} <span>/ ${tMax().toFixed(2)} s</span>`;
+  const now = performance.now(); frameDt = lastFrameT ? Math.min(100, now - lastFrameT) : 16; lastFrameT = now; animating = false;
+  const r = winTarget / winSec;
+  if (Math.abs(Math.log(r)) > 0.002){ winSec *= Math.pow(r, 1 - Math.exp(-frameDt / 70)); animating = true; } else winSec = winTarget;
+  if (Math.abs(cur - lastDrawCur) > winSec) ySnap = true;      // 跳到很遠的地方：刻度直接到位
+  lastDrawCur = cur;
+  drawWave(); ySnap = false; readout(); drawImu();
+  if (animating) draw(); else lastFrameT = 0;
+  if (D){ const tn = `${cur.toFixed(2)} <span>/ ${tMax().toFixed(2)} s</span>`; if ($("tnow").innerHTML !== tn) $("tnow").innerHTML = tn;
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
 }
 draw();
