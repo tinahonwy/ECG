@@ -68,6 +68,9 @@ canvas{display:block;width:100%;touch-action:none}
 .stats td{padding:2px 4px;border-bottom:1px solid var(--line)}
 .stats td:last-child{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
 .hide{display:none!important}
+.imugrid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start}
+@media (max-width:900px){.imugrid{grid-template-columns:1fr}}
+#gl{border-radius:8px;background:var(--bg)}
 kbd{border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px}
 </style>
 </head>
@@ -138,7 +141,97 @@ kbd{border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px}
       <div class="stats" id="stats"></div>
     </div>
   </div>
+
+  <div class="card" style="margin-top:12px" id="imuCard">
+    <div class="panelhead"><span>IMU 3D 姿態（Madgwick，與 imu_cal.py / App fuseImu 相同；兩點校正後 CSV 直接用 CSV 內的 GyroBias）</span>
+      <span class="row" style="gap:8px"><label><input id="objFile" type="file" accept=".obj" class="hide"><button id="objBtn" type="button">載入 3D 模型（.obj）</button></label><span class="sub" id="objInfo">內建簡易人形</span></span></div>
+    <div class="imugrid">
+      <canvas id="gl" height="420"></canvas>
+      <div class="readout">
+        <div class="kv" id="imuKv">
+          <div>狀態</div><div id="imState">--</div>
+          <div>bias 來源</div><div id="imBias">--</div>
+          <div>q (w,x,y,z)</div><div id="imQ">--</div>
+          <div>Roll</div><div id="imRoll">--</div>
+          <div>Pitch</div><div id="imPitch">--</div>
+          <div>Yaw</div><div id="imYaw">--</div>
+          <div>ACC (mg)</div><div id="imAcc">--</div>
+          <div>GYRO (°/s)</div><div id="imGyro">--</div>
+        </div>
+        <div class="sub" style="margin-top:10px">模型方向與 Python 腳本相同：IMU 四元數軸重映射 (q0, q2, −q1, q3)、轉 180° 背對鏡頭、畫面 −90° 旋轉。把 FinalBaseMesh.obj 放在 index.html 同一個資料夾（GitHub repo 根目錄），開啟網頁時會自動載入。Roll/Pitch/Yaw 由原始四元數換算（ZYX）。</div>
+      </div>
+    </div>
+  </div>
 </main>
+
+<script id="imu-src">
+// IMU 姿態融合（移植自 imu_cal.py 的 run_fusion，對照 Kotlin DataLogViewModel.fuseImu()）
+// knownBias = [bx,by,bz]（CSV 的 GyroBiasX/Y/Z 第一筆有效值）→ 從第一筆就有效、起始姿態 = 面朝前站立
+// knownBias = null → 跳過前 1 秒 + 收集 3 秒靜止樣本估 bias（舊版無 bias 欄位的 CSV）
+const IMU = (() => {
+  const DT = 1 / 256, BETA = 0.1, DEG2RAD = Math.PI / 180;
+  const MAX_BIAS_SAMPLES = 768, FUSION_SKIP_SAMPLES = 256;
+  const MOVING_TH = 10.0, STILL_TH = 6.0, STILL_HOLD_MS = 600.0, GYRO_EMA_ALPHA = 0.15, STILL_BIAS_ALPHA = 0.001;
+
+  function runFusion(times, ax_, ay_, az_, gx_, gy_, gz_, knownBias) {
+    const n = times.length;
+    const Q = new Float64Array(n * 4), valid = new Uint8Array(n);
+    let bias = [0, 0, 0], biasValid = false, biasCount = 0;
+    const skipWarmup = knownBias != null;
+    let q0 = 1, q1 = 0, q2 = 0, q3 = 0;
+    if (skipWarmup) { bias = knownBias.slice(); biasValid = true; q0 = 0.70710678; q3 = 0.70710678; }
+    let fusionCount = 0, isStill = true, stillSince = null, gyroEma = 0, calibDoneTime = null;
+    for (let i = 0; i < n; i++) {
+      const t = times[i], ax = ax_[i], ay = ay_[i], az = az_[i];
+      const rg = [gx_[i], gy_[i], gz_[i]];
+      fusionCount++;
+      if (!skipWarmup && fusionCount < FUSION_SKIP_SAMPLES) {
+        Q[4 * i] = q0; Q[4 * i + 1] = q1; Q[4 * i + 2] = q2; Q[4 * i + 3] = q3; valid[i] = 0; continue;
+      }
+      const gNormRaw = Math.hypot(rg[0], rg[1], rg[2]);
+      gyroEma = gyroEma + GYRO_EMA_ALPHA * (gNormRaw - gyroEma);
+      if (!skipWarmup && !biasValid && biasCount < MAX_BIAS_SAMPLES) {
+        if (gNormRaw < 20.0) { biasCount++; for (let k = 0; k < 3; k++) bias[k] += (rg[k] - bias[k]) / biasCount; }
+        if (biasCount >= MAX_BIAS_SAMPLES) { biasValid = true; q0 = 1; q1 = 0; q2 = 0; q3 = 0; calibDoneTime = t; }
+      }
+      if (isStill) { if (gyroEma > MOVING_TH) { isStill = false; stillSince = null; } }
+      else if (gyroEma < STILL_TH) {
+        if (stillSince === null) stillSince = t;
+        else if ((t - stillSince) * 1000 >= STILL_HOLD_MS) { isStill = true; stillSince = null; }
+      } else stillSince = null;
+      if (biasValid && isStill) for (let k = 0; k < 3; k++) bias[k] += STILL_BIAS_ALPHA * (rg[k] - bias[k]);
+      let g = biasValid ? [rg[0] - bias[0], rg[1] - bias[1], rg[2] - bias[2]] : rg.slice();
+      if (biasValid && Math.hypot(g[0], g[1], g[2]) < 0.15) g = [0, 0, 0];
+      const gx = g[0] * DEG2RAD, gy = g[1] * DEG2RAD, gz = g[2] * DEG2RAD;
+      let qd0 = 0.5 * (-q1 * gx - q2 * gy - q3 * gz);
+      let qd1 = 0.5 * (q0 * gx + q2 * gz - q3 * gy);
+      let qd2 = 0.5 * (q0 * gy - q1 * gz + q3 * gx);
+      let qd3 = 0.5 * (q0 * gz + q1 * gy - q2 * gx);
+      const aN = Math.sqrt(ax * ax + ay * ay + az * az);
+      if (aN > 1e-6) {
+        const axn = ax / aN, ayn = ay / aN, azn = az / aN;
+        const _2q0 = 2 * q0, _2q1 = 2 * q1, _2q2 = 2 * q2, _2q3 = 2 * q3, _4q0 = 4 * q0, _4q1 = 4 * q1, _4q2 = 4 * q2;
+        const _8q1 = 8 * q1, _8q2 = 8 * q2, q0q0 = q0 * q0, q1q1 = q1 * q1, q2q2 = q2 * q2, q3q3 = q3 * q3;
+        let s0 = _4q0 * q2q2 + _2q2 * axn + _4q0 * q1q1 - _2q1 * ayn;
+        let s1 = _4q1 * q3q3 - _2q3 * axn + 4 * q0q0 * q1 - _2q0 * ayn - _4q1 + _8q1 * q1q1 + _8q1 * q2q2 + _4q1 * azn;
+        let s2 = 4 * q0q0 * q2 + _2q0 * axn + _4q2 * q3q3 - _2q3 * ayn - _4q2 + _8q2 * q1q1 + _8q2 * q2q2 + _4q2 * azn;
+        let s3 = 4 * q1q1 * q3 - _2q1 * axn + 4 * q2q2 * q3 - _2q2 * ayn;
+        const sN = Math.sqrt(s0 * s0 + s1 * s1 + s2 * s2 + s3 * s3);
+        if (sN > 1e-6) { s0 /= sN; s1 /= sN; s2 /= sN; s3 /= sN; }
+        qd0 -= BETA * s0; qd1 -= BETA * s1; qd2 -= BETA * s2; qd3 -= BETA * s3;
+      }
+      q0 += qd0 * DT; q1 += qd1 * DT; q2 += qd2 * DT; q3 += qd3 * DT;
+      const qN = Math.sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+      if (qN > 1e-6) { q0 /= qN; q1 /= qN; q2 /= qN; q3 /= qN; }
+      Q[4 * i] = q0; Q[4 * i + 1] = q1; Q[4 * i + 2] = q2; Q[4 * i + 3] = q3; valid[i] = biasValid ? 1 : 0;
+    }
+    return { Q, valid, bias, skipWarmup, calibDoneTime };
+  }
+  return { runFusion };
+})();
+if (typeof module !== "undefined") module.exports = IMU;
+
+</script>
 
 <script id="alg-src">
 // ChestSpO2Verified 的 JavaScript 移植（逐點 push，與 Kotlin 版逐行對應；同步計算）
@@ -603,20 +696,22 @@ function parse(text){
   text = text.replace(/^﻿/, "");
   const nl = text.indexOf("\n");
   const hdr = text.slice(0, nl).split(",").map(s=>s.trim().replace(/\r$/,""));
-  const need = ["Time","PPG_IR","PPG_RED"];
+  const need = ["Time"];
   for (const n of need) if (hdr.indexOf(n) < 0) throw new Error("CSV 缺少欄位：" + n);
   const names = ["Time","ECG","PPG_IR","PPG_RED","ACC_X","ACC_Y","ACC_Z","GYRO_X","GYRO_Y","GYRO_Z","TEMPERATURE"];
   const idx = names.map(n=>hdr.indexOf(n));
   const lines = text.slice(nl+1).split("\n");
   let n = 0; for (const l of lines) if (l.trim()) n++;
-  const cols = {}; for (const nm of names) cols[nm] = (nm==="Time") ? new Float64Array(n) : new Float32Array(n);
+  const cols = {}; for (const nm of names) cols[nm] = new Float64Array(n);
   const meta = {}; const mIdx = {PatientCode:hdr.indexOf("PatientCode"), Age:hdr.indexOf("Age"), Sex:hdr.indexOf("Sex")};
+  const bIdx = ["GyroBiasX","GyroBiasY","GyroBiasZ"].map(nm=>hdr.indexOf(nm)); let knownBias = null, biasRow = -1;
   let r = 0;
   for (const l of lines){
     if (!l.trim()) continue;
     const c = l.split(",");
     for (let k=0;k<names.length;k++){ const j = idx[k]; cols[names[k]][r] = j<0 ? NaN : parseFloat(c[j]); }
     for (const m in mIdx){ const j = mIdx[m]; if (j>=0 && !(m in meta)){ const v=(c[j]||"").trim(); if (v) meta[m]=v; } }
+    if (!knownBias && bIdx.every(j=>j>=0)){ const b = bIdx.map(j=>parseFloat(c[j])); if (b.every(Number.isFinite)){ knownBias = b; biasRow = r; } }
     r++;
     if ((r & 32767) === 0) postMessage({type:"progress", stage:"讀取", frac: r/n});
   }
@@ -628,10 +723,16 @@ function parse(text){
     fmt = "new"; t = T;
     for (let i=1;i<n;i++){ const s = Math.round((T[i]-T[i-1])*FS); if (s > 1) gaps.push({row:i, t:T[i-1], missing:s-1}); }
   } else {
-    fmt = "old"; t = new Float64Array(n); for (let i=0;i<n;i++) t[i] = i/FS;
+    fmt = "old"; t = new Float64Array(n); const t0 = Number.isFinite(T[0]) ? T[0] : 0; for (let i=0;i<n;i++) t[i] = t0 + i/FS;
   }
   const hasEcg = idx[1] >= 0;
-  return {n, fmt, t, cols, gaps, back, meta, hasEcg,
+  // IMU 姿態融合（imu_cal.py 的 run_fusion）；時間用顯示時間（舊版 = 重建後的 列號/256）
+  let imu = null;
+  if (idx.slice(4, 10).every(j=>j>=0)){
+    const f = IMU.runFusion(t, cols.ACC_X, cols.ACC_Y, cols.ACC_Z, cols.GYRO_X, cols.GYRO_Y, cols.GYRO_Z, knownBias);
+    imu = {Q: f.Q, valid: f.valid, bias: knownBias, biasRow, calibDoneTime: f.calibDoneTime, finalBias: f.bias};
+  }
+  return {n, fmt, t, cols, gaps, back, meta, hasEcg, imu,
     irBp: sosfilt(SOS_PPG, cols.PPG_IR), redBp: sosfilt(SOS_PPG, cols.PPG_RED), ecgBp: hasEcg ? sosfilt(SOS_ECG, cols.ECG) : null};
 }
 function run(opt){
@@ -651,7 +752,7 @@ onmessage = e => {
   try {
     if (m.type === "load"){
       D = parse(m.text);
-      const out = {n:D.n, fmt:D.fmt, t:D.t, gaps:D.gaps, back:D.back, meta:D.meta, hasEcg:D.hasEcg, cols:{}, irBp:D.irBp, redBp:D.redBp, ecgBp:D.ecgBp};
+      const out = {n:D.n, fmt:D.fmt, t:D.t, gaps:D.gaps, back:D.back, meta:D.meta, hasEcg:D.hasEcg, imu:D.imu, cols:{}, irBp:D.irBp, redBp:D.redBp, ecgBp:D.ecgBp};
       for (const k in D.cols) if (k !== "Time") out.cols[k] = D.cols[k].slice();
       const tr = [out.t.buffer.slice(0)]; out.t = new Float64Array(tr[0]);
       postMessage({type:"data", d: out});
@@ -665,7 +766,7 @@ onmessage = e => {
 (() => {
 const $ = id => document.getElementById(id);
 const FS = 256;
-const worker = new Worker(URL.createObjectURL(new Blob([$("alg-src").textContent, "\n", $("worker-src").textContent], {type:"text/javascript"})));
+const worker = new Worker(URL.createObjectURL(new Blob([$("alg-src").textContent, "\n", $("imu-src").textContent, "\n", $("worker-src").textContent], {type:"text/javascript"})));
 let D = null, RES = [], RES_T = null, fileName = "";
 let cur = 0, playing = false, lastTs = 0;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -705,6 +806,7 @@ worker.onmessage = e => {
     let s = `${fileName}\n${D.fmt==="new" ? "新版 CSV（Time = 序號/256）" : "舊版 CSV（原始 Time 倒退 "+D.back+" 次，已重建為 列號/256）"} · ${D.n} 樣本（${(D.n/FS).toFixed(1)} s）`;
     if (D.fmt === "new") s += ` · 掉包 ${D.gaps.length} 處，共 ${lost} 樣本（${(100*lost/(D.n+lost)).toFixed(2)}%）`;
     if (!D.hasEcg) s += " · 無 ECG 欄";
+    if (D.imu) s += !D.imu.bias ? " · 無 GyroBias（IMU bias 自行估計）" : D.imu.biasRow === 0 ? " · 兩點校正後 IMU CSV（GyroBias 從第一筆有效）" : " · 有 GyroBias（第 " + (D.imu.biasRow+1) + " 筆起；非校正後 CSV）";
     const mt = Object.entries(D.meta).map(([k,v])=>k+"="+v).join("、"); if (mt) s += " · " + mt;
     $("info").textContent = s;
     $("resetGap").disabled = D.fmt !== "new";
@@ -827,7 +929,9 @@ function rangeOf(arrs, i0, i1){
 function drawWave(){
   const {ctx, w, h} = prep(wave);
   if (!D){ ctx.fillStyle = css("--muted"); ctx.font = "13px system-ui"; ctx.textAlign = "center"; ctx.fillText("尚未載入 CSV", w/2, h/2); return; }
-  const win = +$("win").value, x1 = Math.max(cur, tMin() + Math.min(win, tMax()-tMin())), x0 = x1 - win;
+  const winSel = +$("win").value, span = tMax() - tMin(); let x0, x1;
+  if (span <= winSel){ x0 = tMin(); x1 = tMax(); } else { x1 = Math.max(cur, tMin() + winSel); x0 = x1 - winSel; }
+  const win = (x1 - x0) || 1;
   const i0 = Math.max(0, lowerBound(D.t, x0) - 1), i1 = Math.min(D.n, lowerBound(D.t, x1) + 1);
   const L = 56, R = 14, X = {x: L, w: w - L - R};
   const bp = $("filt").value === "bp", c = D.cols;
@@ -915,7 +1019,8 @@ function drawTrend(){
   }
   // 時間軸 + 游標 + 目前視窗
   ctx.fillStyle = css("--muted"); ctx.font = "10.5px system-ui"; ctx.textAlign = "center";
-  for (const v of niceTicks(x0, x1, 10)) ctx.fillText(v.toFixed(0) + " s", px(v), h - 6);
+  { const tk = niceTicks(x0, x1, 10), st = tk.length > 1 ? tk[1] - tk[0] : 1, dec = st >= 1 ? 0 : st >= 0.1 ? 1 : 2;
+    for (const v of tk) ctx.fillText(v.toFixed(dec) + " s", px(v), h - 6); }
   const win = +$("win").value;
   ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(px(cur - win), top, px(cur) - px(cur - win), h - top - bottom); ctx.globalAlpha = 1;
   ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), h - bottom); ctx.stroke();
@@ -967,8 +1072,132 @@ $("export").onclick = () => {
   a.download = fileName.replace(/\.csv$/i, "") + "_spo2_replay.csv"; a.click();
 };
 
+// ================================================================ IMU 3D（對照 imu_cal.py Renderer）
+const M4 = {
+  I: () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  mul: (a, b) => { const o = new Array(16).fill(0); for (let r=0;r<4;r++) for (let c=0;c<4;c++){ let s=0; for (let k=0;k<4;k++) s += a[r*4+k]*b[k*4+c]; o[r*4+c]=s; } return o; },
+  rot: (deg, x, y, z) => { const n = Math.hypot(x,y,z); if (n < 1e-8) return M4.I(); x/=n; y/=n; z/=n;
+    const r = deg*Math.PI/180, c = Math.cos(r), s = Math.sin(r), nc = 1-c;
+    return [x*x*nc+c, x*y*nc-z*s, x*z*nc+y*s, 0,  y*x*nc+z*s, y*y*nc+c, y*z*nc-x*s, 0,  x*z*nc-y*s, y*z*nc+x*s, z*z*nc+c, 0,  0,0,0,1]; },
+  scale: s => [s,0,0,0, 0,s,0,0, 0,0,s,0, 0,0,0,1],
+  frustum: (l, r, b, t, n, f) => [2*n/(r-l),0,(r+l)/(r-l),0, 0,2*n/(t-b),(t+b)/(t-b),0, 0,0,-(f+n)/(f-n),-2*f*n/(f-n), 0,0,-1,0],
+  lookAt: (e, c, up) => { const sub=(a,b)=>a.map((v,i)=>v-b[i]), nrm=a=>{const l=Math.hypot(...a);return a.map(v=>v/l);}, cr=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+    const f = nrm(sub(c,e)); let u = nrm(up); const s = nrm(cr(f,u)); u = cr(s,f);
+    return [s[0],s[1],s[2],-dot(s,e), u[0],u[1],u[2],-dot(u,e), -f[0],-f[1],-f[2],dot(f,e), 0,0,0,1]; },
+  quat: (w, x, y, z) => { const xx=x*x,yy=y*y,zz=z*z,xy=x*y,xz=x*z,yz=y*z,wx=w*x,wy=w*y,wz=w*z;
+    return [1-2*(yy+zz),2*(xy-wz),2*(xz+wy),0, 2*(xy+wz),1-2*(xx+zz),2*(yz-wx),0, 2*(xz-wy),2*(yz+wx),1-2*(xx+yy),0, 0,0,0,1]; },
+  gl: m => { const o = new Float32Array(16); for (let r=0;r<4;r++) for (let c=0;c<4;c++) o[c*4+r] = m[r*4+c]; return o; },
+};
+const IDLE_AXIS = [0,0,1], IDLE_DEG = 90, MODEL_SCALE = 3.0;
+function parseObj(text){
+  const pos = [], idx = [];
+  for (const raw of text.split("\n")){
+    const line = raw.trim();
+    if (line.startsWith("v ")){ const p = line.split(/\s+/); pos.push(+p[1], +p[2], +p[3]); }
+    else if (line.startsWith("f ")){ const v = line.split(/\s+/).slice(1).map(t => parseInt(t.split("/")[0]) - 1);
+      if (v.length < 3) continue; for (let i=1;i<v.length-1;i++) idx.push(v[0], v[i], v[i+1]); }
+  }
+  const P = new Float32Array(pos); const mn=[Infinity,Infinity,Infinity], mx=[-Infinity,-Infinity,-Infinity];
+  for (let i=0;i<P.length;i+=3) for (let k=0;k<3;k++){ mn[k]=Math.min(mn[k],P[i+k]); mx[k]=Math.max(mx[k],P[i+k]); }
+  let rad = 0;
+  for (let i=0;i<P.length;i+=3){ for (let k=0;k<3;k++) P[i+k] -= (mn[k]+mx[k])/2; rad = Math.max(rad, Math.hypot(P[i],P[i+1],P[i+2])); }
+  return {P, I: new Uint32Array(idx), radius: rad};
+}
+// 內建簡易人形（Y 軸朝上、正面 +Z；胸前小方塊標示正面）
+function builtinMesh(){
+  const P = [], I = [];
+  const box = (cx, cy, cz, sx, sy, sz) => { const b = P.length/3;
+    for (const [x,y,z] of [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]]) P.push(cx+x*sx/2, cy+y*sy/2, cz+z*sz/2);
+    for (const f of [[0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[3,2,6,7],[4,5,1,0]]) I.push(b+f[0],b+f[1],b+f[2], b+f[0],b+f[2],b+f[3]); };
+  box(0, 0.35, 0, 0.62, 0.8, 0.3);        // 軀幹
+  box(0, 0.98, 0, 0.32, 0.36, 0.32);      // 頭
+  box(0, 0.98, 0.18, 0.08, 0.08, 0.06);   // 鼻（正面）
+  box(0, 0.5, 0.17, 0.2, 0.14, 0.05);     // 胸前裝置（正面）
+  box(-0.43, 0.35, 0, 0.18, 0.78, 0.18); box(0.43, 0.35, 0, 0.18, 0.78, 0.18);   // 手
+  box(-0.17, -0.5, 0, 0.22, 0.9, 0.24);  box(0.17, -0.5, 0, 0.22, 0.9, 0.24);    // 腳
+  const Pf = new Float32Array(P); let rad = 0;
+  for (let i=0;i<Pf.length;i+=3) rad = Math.max(rad, Math.hypot(Pf[i],Pf[i+1],Pf[i+2]));
+  return {P: Pf, I: new Uint32Array(I), radius: rad};
+}
+const GL3 = (() => {
+  const cv = $("gl"), gl = cv.getContext("webgl2", {antialias: true});
+  if (!gl) return null;
+  const sh = (src, type) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(`#version 300 es
+layout(location = 0) in vec3 aPosition; uniform mat4 uMVP; out vec3 vNormal;
+void main(){ vNormal = normalize(aPosition); gl_Position = uMVP * vec4(aPosition, 1.0); }`, gl.VERTEX_SHADER));
+  gl.attachShader(prog, sh(`#version 300 es
+precision mediump float; in vec3 vNormal; out vec4 fragColor; uniform vec4 uColor;
+void main(){ vec3 lightDir = normalize(vec3(0.3, 1.0, 0.8)); float diff = max(dot(normalize(vNormal), lightDir), 0.0);
+  float shade = 0.25 + 0.75 * diff; fragColor = vec4(uColor.rgb * shade, uColor.a); }`, gl.FRAGMENT_SHADER));
+  gl.linkProgram(prog);
+  const uMVP = gl.getUniformLocation(prog, "uMVP"), uColor = gl.getUniformLocation(prog, "uColor");
+  const vao = gl.createVertexArray(), vbo = gl.createBuffer(), ebo = gl.createBuffer();
+  let count = 0, radius = 1;
+  function setMesh(m){
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferData(gl.ARRAY_BUFFER, m.P, gl.STATIC_DRAW);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.I, gl.STATIC_DRAW);
+    gl.bindVertexArray(null); count = m.I.length; radius = m.radius;
+  }
+  function render(valid, q){
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+    cv.style.height = h + "px";
+    if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)){ cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
+    gl.viewport(0, 0, cv.width, cv.height);
+    const bg = css("--bg"), m = bg.match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+    if (m) gl.clearColor(parseInt(m[1],16)/255, parseInt(m[2],16)/255, parseInt(m[3],16)/255, 1); else gl.clearColor(1,1,1,1);
+    gl.enable(gl.DEPTH_TEST); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!count) return;
+    let imuRot = valid ? M4.quat(q[0], q[2], -q[1], q[3]) : M4.rot(IDLE_DEG, ...IDLE_AXIS);
+    imuRot = M4.mul(imuRot, M4.rot(180, 0, 1, 0));
+    const s = (radius > 1e-3 ? 1 / radius : 1) * MODEL_SCALE;
+    const model = M4.mul(M4.scale(s), imuRot);
+    const ratio = cv.width / cv.height;
+    const pv = M4.mul(M4.frustum(-ratio, ratio, -1, 1, 3, 30), M4.rot(-90, 0, 0, 1));
+    const mvp = M4.mul(pv, M4.mul(M4.lookAt([0,0,10],[0,0,0],[0,1,0]), model));
+    gl.useProgram(prog); gl.uniformMatrix4fv(uMVP, false, M4.gl(mvp)); gl.uniform4f(uColor, 0.0, 0.7, 1.0, 1.0);
+    gl.bindVertexArray(vao); gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_INT, 0); gl.bindVertexArray(null);
+  }
+  return {setMesh, render};
+})();
+if (GL3){
+  GL3.setMesh(builtinMesh());
+  if (location.protocol !== "file:") fetch("FinalBaseMesh.obj").then(r => r.ok ? r.text() : Promise.reject()).then(t => {
+    const m = parseObj(t); if (m.I.length){ GL3.setMesh(m); $("objInfo").textContent = `FinalBaseMesh.obj（${m.P.length/3} 頂點、${m.I.length/3} 三角形）`; draw(); }
+  }).catch(() => {});
+} else $("objInfo").textContent = "這個瀏覽器不支援 WebGL2";
+$("objBtn").onclick = () => $("objFile").click();
+$("objFile").onchange = () => { const f = $("objFile").files[0]; if (!f || !GL3) return;
+  f.text().then(t => { const m = parseObj(t); if (!m.I.length){ $("objInfo").textContent = "OBJ 裡沒有面"; return; }
+    GL3.setMesh(m); $("objInfo").textContent = `${f.name}（${m.P.length/3} 頂點、${m.I.length/3} 三角形）`; draw(); }); };
+function drawImu(){
+  if (!GL3) return;
+  const im = D && D.imu;
+  if (!im){ GL3.render(false, null); ["imState","imBias","imQ","imRoll","imPitch","imYaw","imAcc","imGyro"].forEach(id => $(id).textContent = D ? "（CSV 沒有 ACC/GYRO 欄）" : "--"); return; }
+  const i = Math.min(Math.max(lowerBound(D.t, cur), 0), D.n - 1);   // 同 Python searchsorted
+  const q = [im.Q[4*i], im.Q[4*i+1], im.Q[4*i+2], im.Q[4*i+3]], v = !!im.valid[i];
+  GL3.render(v, q);
+  const deg = r => (r*180/Math.PI).toFixed(1) + "°";
+  const [w, x, y, z] = q;
+  $("imState").textContent = v ? "有效" : "校正中…（顯示面朝前占位姿態）";
+  $("imBias").textContent = im.bias ? `CSV 第 ${im.biasRow+1} 筆：(${im.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` +
+    (im.biasRow > 0 ? "（一般 CSV：訊號未套用兩點校正 qCal，姿態為感測器座標，僅供參考）" : "") :
+    (im.calibDoneTime != null ? `自行估計（完成於 t=${im.calibDoneTime.toFixed(2)} s）` : "自行估計（靜止樣本不足，bias 從未有效）");
+  $("imQ").textContent = q.map(a => a.toFixed(4)).join(", ");
+  $("imRoll").textContent = deg(Math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y)));
+  $("imPitch").textContent = deg(Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x)))));
+  $("imYaw").textContent = deg(Math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z)));
+  const c = D.cols, f1 = a => Number.isFinite(a) ? a.toFixed(1) : "--";
+  $("imAcc").textContent = [c.ACC_X[i], c.ACC_Y[i], c.ACC_Z[i]].map(f1).join(", ");
+  $("imGyro").textContent = [c.GYRO_X[i], c.GYRO_Y[i], c.GYRO_Z[i]].map(a => Number.isFinite(a) ? a.toFixed(2) : "--").join(", ");
+}
+
 function draw(){
-  drawWave(); drawTrend(); readout();
+  drawWave(); drawTrend(); readout(); drawImu();
   if (D){ $("tnow").textContent = `${cur.toFixed(2)} / ${tMax().toFixed(2)} s`;
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
 }
