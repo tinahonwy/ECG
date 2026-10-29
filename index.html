@@ -1,0 +1,979 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>胸口 SpO2 波形回放</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f24; --muted:#5f6b7a; --line:#e3e7ec; --grid:#eef1f4;
+  --accent:#2563eb; --ecg:#0f766e; --ir:#7c3aed; --red:#dc2626; --ax:#2563eb; --ay:#16a34a; --az:#d97706;
+  --ok:#16a34a; --hold:#d97706; --bad:#dc2626; --warm:#94a3b8; --gap:#dc2626;
+  --st-update:rgba(22,163,74,.12); --st-hold:rgba(217,119,6,.18); --st-no:rgba(220,38,38,.14); --st-warm:rgba(148,163,184,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1318; --panel:#171c23; --ink:#e6e9ee; --muted:#93a0b1; --line:#2a313b; --grid:#20262e;
+    --accent:#60a5fa; --ecg:#2dd4bf; --ir:#a78bfa; --red:#f87171; --ax:#60a5fa; --ay:#4ade80; --az:#fbbf24;
+    --ok:#4ade80; --hold:#fbbf24; --bad:#f87171; --warm:#64748b; --gap:#f87171;
+    --st-update:rgba(74,222,128,.10); --st-hold:rgba(251,191,36,.16); --st-no:rgba(248,113,113,.14); --st-warm:rgba(100,116,139,.18);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --panel:#171c23; --ink:#e6e9ee; --muted:#93a0b1; --line:#2a313b; --grid:#20262e;
+  --accent:#60a5fa; --ecg:#2dd4bf; --ir:#a78bfa; --red:#f87171; --ax:#60a5fa; --ay:#4ade80; --az:#fbbf24;
+  --ok:#4ade80; --hold:#fbbf24; --bad:#f87171; --warm:#64748b; --gap:#f87171;
+  --st-update:rgba(74,222,128,.10); --st-hold:rgba(251,191,36,.16); --st-no:rgba(248,113,113,.14); --st-warm:rgba(100,116,139,.18);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif}
+header{padding:14px 16px 6px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}
+h1{font-size:18px;margin:0}
+.sub{color:var(--muted);font-size:12.5px}
+main{padding:0 16px 24px;max-width:1500px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+label{color:var(--muted);font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+select,input[type=number]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit}
+input[type=number]{width:62px}
+button{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 12px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+#drop{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);cursor:pointer}
+#drop.over{border-color:var(--accent);color:var(--accent)}
+#info{font-size:12.5px;color:var(--muted);white-space:pre-line}
+.grid{display:grid;grid-template-columns:1fr 290px;gap:12px;margin-top:12px}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panelhead{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);margin:2px 2px 4px}
+canvas{display:block;width:100%;touch-action:none}
+#wave{cursor:grab}
+#trend{cursor:crosshair}
+.player{margin-top:12px}
+#seek{flex:1;min-width:160px;accent-color:var(--accent)}
+.tnow{font-variant-numeric:tabular-nums;min-width:120px}
+.readout .big{font-variant-ligatures:none;font-size:34px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.1}
+.readout .lbl{color:var(--muted);font-size:12px}
+.readout .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;margin-top:10px}
+.readout .kv div:nth-child(odd){color:var(--muted)}
+.readout .kv div:nth-child(even){font-variant-numeric:tabular-nums;word-break:break-all}
+.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;color:#fff}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.legend b{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+#prog{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:8px;display:none}
+#prog>div{height:100%;width:0;background:var(--accent)}
+.stats{font-size:12.5px;margin-top:10px;color:var(--muted)}
+.stats table{border-collapse:collapse;width:100%}
+.stats td{padding:2px 4px;border-bottom:1px solid var(--line)}
+.stats td:last-child{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+.hide{display:none!important}
+kbd{border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <h1>胸口 SpO2 波形回放</h1>
+  <span class="sub">ChestSpO2Verified 離線重算 · 新舊 CSV 都支援 · 檔案只在你的瀏覽器裡處理，不會上傳</span>
+</header>
+<main>
+  <div class="card">
+    <div id="drop">把 App 錄製的 CSV 拖到這裡，或<u>點這裡選檔案</u><input id="file" type="file" accept=".csv,text/csv" class="hide"></div>
+    <div class="row" style="margin-top:10px">
+      <label>公式 <select id="profile">
+        <option value="CHEST_BODY">胸口裝置-貼胸口（CHEST_BODY）</option>
+        <option value="CHEST">胸口裝置-手指貼（CHEST）</option>
+        <option value="FINGER">手指（FINGER）</option></select></label>
+      <label>穩定期 <input id="settle" type="number" min="0" max="120" value="20"> 秒</label>
+      <label><input id="useEcg" type="checkbox" checked> 使用 ECG</label>
+      <label title="Kotlin 註解建議掉封包時呼叫 reset()；App 實際是否如此請確認。只對新版 CSV 有效"><input id="resetGap" type="checkbox"> 掉包時 reset()</label>
+      <button id="rerun" disabled>重新計算</button>
+      <button id="export" disabled>匯出每秒結果 CSV</button>
+      <span id="info"></span>
+    </div>
+    <div id="prog"><div></div></div>
+  </div>
+
+  <div class="card player">
+    <div class="row">
+      <button id="play" class="primary" disabled>▶ 播放</button>
+      <label>速度 <select id="speed"><option>0.5</option><option selected>1</option><option>2</option><option>5</option><option>10</option><option>30</option></select>×</label>
+      <label>視窗 <select id="win"><option>5</option><option selected>10</option><option>20</option><option>30</option><option>60</option></select> 秒</label>
+      <label>波形 <select id="filt"><option value="raw">原始</option><option value="bp" selected>帶通（App 演算法同款）</option></select></label>
+      <input id="seek" type="range" min="0" max="1000" value="0" step="1" disabled>
+      <span class="tnow" id="tnow">0.00 / 0.00 s</span>
+    </div>
+    <div class="sub" style="margin-top:4px"><kbd>空白鍵</kbd> 播放/暫停 · <kbd>←</kbd><kbd>→</kbd> 前後 1 秒（按住 Shift 為 10 秒）· 波形上拖曳可平移、滾輪可縮放 · 點趨勢圖可跳到該時間</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="panelhead"><span>即時波形（右緣 = 目前時間）</span>
+        <span class="legend"><span><i style="background:var(--ecg)"></i>ECG</span><span><i style="background:var(--ir)"></i>PPG IR</span><span><i style="background:var(--red)"></i>PPG RED</span><span><i style="background:var(--ax)"></i>ACC X</span><span><i style="background:var(--ay)"></i>Y</span><span><i style="background:var(--az)"></i>Z</span><span><i style="background:var(--gap)"></i>掉包</span></span></div>
+      <canvas id="wave" height="460"></canvas>
+      <div class="panelhead" style="margin-top:10px"><span>整段趨勢（每秒結果，時間 = App 當時顯示的時刻）</span>
+        <span class="legend"><span><b style="background:var(--st-update)"></b>UPDATE</span><span><b style="background:var(--st-hold)"></b>HOLD</span><span><b style="background:var(--st-no)"></b>NO_OUTPUT</span><span><b style="background:var(--st-warm)"></b>WARMUP</span></span></div>
+      <canvas id="trend" height="400"></canvas>
+      <div class="legend" style="margin-top:4px">
+        <span><i style="background:var(--accent)"></i>SpO2_out</span><span><i style="background:var(--muted)"></i>SpO2_raw（單秒）</span>
+        <span><i style="background:var(--ir)"></i>R（單秒）</span><span><i style="background:var(--accent)"></i>R_out</span><span><i style="background:var(--az)"></i>R_C_out（方法 C）</span>
+        <span><i style="background:var(--red)"></i>驗證 HR</span><span><i style="background:var(--ecg)"></i>PPG HR</span>
+      </div>
+    </div>
+    <div class="card readout">
+      <div class="lbl">SpO2（App 顯示格式）</div>
+      <div class="big" id="roSpo2">--</div>
+      <div style="margin-top:6px" id="roStatus"></div>
+      <div class="kv">
+        <div>R_out</div><div id="roR">--</div>
+        <div>R（單秒）</div><div id="roR1">--</div>
+        <div>R_C_out</div><div id="roRC">--</div>
+        <div>驗證 HR</div><div id="roHr">--</div>
+        <div>PPG HR</div><div id="roHrP">--</div>
+        <div>方法</div><div id="roMethod">--</div>
+        <div>ECG</div><div id="roEcg">--</div>
+        <div>原因</div><div id="roReason">--</div>
+        <div>視窗中心</div><div id="roTc">--</div>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+</main>
+
+<script id="alg-src">
+// ChestSpO2Verified 的 JavaScript 移植（逐點 push，與 Kotlin 版逐行對應；同步計算）
+// 用法：const alg = new ChestSpO2(profileKey, {settleSec:20}, r => results.push(r));
+//       每列呼叫 alg.push(ir, red, ax, ay, az, ecgOrNaN)
+const CS = (() => {
+  const HR_LO = 0.7, HR_HI = 3.6, MIN_IBI_S = 0.27, EDGE_HZ = 0.75, LOW_HZ = 0.5, PPG_LOW_HR = true;
+  const LOW_HARM2_DB = 6.0, LOW_HARM3_DB = 3.0, RESP_LO = 0.1, RESP_HI = 0.45, RESP_PEAK_X = 4.0, RESP_TOL = 0.05;
+  const ECG_ZERO_RUN_S = 0.1, ECG_PEAK_RATIO = 5.0, ECG_AMP_CV_MAX = 0.3, ECG_T_RR_RATIO = 0.6, ECG_CONFIRM_S = 3;
+  const HALF_BW = 0.15, IBI_CV_MAX = 0.20, TRACK_S = 15.0, JUMP_X = 2.0, HARM_DB = 3.0, ACC_RATIO = 4.0;
+  const SMOOTH_S = 30.0, MAX_HOLD_S = 30.0, CAP_AT_100 = false, SMALL_WAVE_RATIO = 0.5;
+  const SOS_256 = [[0.00692579317245211, 0.01385158634490421, 0.00692579317245211, 1.0, -1.7704843631935339, 0.7997563419186986],
+    [1.0, -2.0, 1.0, 1.0, -1.9734389194532516, 0.9738890857514404]];
+  const SOS_LOW_256 = [[0.0076678415034478345, 0.015335683006895669, 0.0076678415034478345, 1.0, -1.7475943160434553, 0.7787557783879999],
+    [1.0, -2.0, 1.0, 1.0, -1.9862584137530375, 0.9863634957349013]];
+  const SOS_ECG_256 = [[0.02670707213833988, 0.05341414427667976, 0.02670707213833988, 1.0, -1.5202802119153467, 0.6755509842066412],
+    [1.0, -2.0, 1.0, 1.0, -1.861462139896686, 0.8796977999256663]];
+
+  const PROFILES = {
+    FINGER: { label: "手指", a: 6.2357, b: -36.1546, c: 111.8910, rOffset: 0.01, rMax: 1.0, ppgLowHr: true },
+    CHEST: { label: "胸口裝置-手指貼", a: 1.17638, b: -15.7576, c: 112.2532, rOffset: 0.0, rMax: 3.0, ppgLowHr: true },
+    CHEST_BODY: { label: "胸口裝置-貼胸口", a: 2.3970, b: -22.4159, c: 108.8910, rOffset: 0.0, rMax: 3.0, ppgLowHr: false },
+  };
+  const calibrate = (p, r) => { const rc = r - p.rOffset; return p.a * rc * rc + p.b * rc + p.c; };
+
+  const fin = Number.isFinite, isNaN_ = Number.isNaN;
+  function median(v) {
+    if (v.length === 0) return NaN;
+    const s = Array.from(v).sort((a, b) => a - b), n = s.length;
+    return n % 2 === 1 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+  const avg = v => { let s = 0; for (const x of v) s += x; return s / v.length; };
+  // 穩定排序（由大到小）
+  const sortDesc = (idx, key) => idx.map((v, i) => [v, i]).sort((a, b) => (key(b[0]) - key(a[0])) || (a[1] - b[1])).map(x => x[0]);
+
+  function sosStep(sos, st, x) {
+    let v = x;
+    for (let s = 0; s < sos.length; s++) {
+      const c = sos[s], z = st[s];
+      const y = c[0] * v + z[0];
+      z[0] = c[1] * v - c[4] * y + z[1];
+      z[1] = c[2] * v - c[5] * y;
+      v = y;
+    }
+    return v;
+  }
+  const newState = sos => sos.map(() => [0, 0]);
+
+  function fft(re, im) {
+    const n = re.length;
+    let j = 0;
+    for (let i = 1; i < n; i++) {
+      let bit = n >> 1;
+      while (j & bit) { j ^= bit; bit >>= 1; }
+      j ^= bit;
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const a = i + k, b = a + len / 2;
+          const tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+          const ncr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = ncr;
+        }
+      }
+    }
+  }
+
+  class ChestSpO2 {
+    constructor(profileKey = "CHEST_BODY", opt = {}, onResult = () => {}) {
+      this.fs = opt.fs || 256; this.winSec = opt.winSec || 10; this.tolBpm = opt.tolBpm ?? 6.0;
+      this.snrMinDb = opt.snrMinDb ?? 10.0; this.cohMin = opt.cohMin ?? 0.8;
+      this.settleSec = opt.settleSec ?? 20;
+      this.profileKey = profileKey; this.profile = PROFILES[profileKey];
+      this.onResult = onResult;
+      const fs = this.fs, w = this.w = fs * this.winSec;
+      this.rings = {};
+      for (const k of ["ir", "red", "bp", "redBp", "bpLow", "ax", "ay", "az", "ecg", "ecgRaw"]) this.rings[k] = new Float32Array(w);
+      let nf = 1; while (nf < w * 4 - 1) nf <<= 1; // highestOneBit(w*4-1) shl 1
+      this.nfft = (1 << (31 - Math.clz32(w * 4 - 1))) << 1;
+      this.hann = new Float64Array(w); let hs = 0;
+      for (let i = 0; i < w; i++) { this.hann[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (w - 1)); hs += this.hann[i]; }
+      this.hannSum = hs;
+      this.df = fs / this.nfft;
+      this.kMax = Math.ceil(7.5 / this.df);
+      this.freq = new Float64Array(this.kMax + 1).map((_, k) => k * this.df);
+      this.reset();
+    }
+
+    reset() {
+      this.pos = 0; this.count = 0; this.settleCount = 0; this.irOffset = NaN; this.redOffset = NaN;
+      this.bpState = newState(SOS_256); this.bpRedState = newState(SOS_256); this.bpLowState = newState(SOS_LOW_256);
+      this.ecgState = newState(SOS_ECG_256); this.ecgOffset = NaN; this.ecgSeen = false;
+      for (const k in this.rings) this.rings[k].fill(0);
+      this.track = []; this.hist = []; this.lastOut = NaN; this.lastROut = NaN; this.lastValidT = NaN;
+      this.histC = []; this.lastRCOut = NaN;
+      this.trackPpg = []; this.lastPpgHr = NaN; this.lastPpgT = NaN;
+      this.ecgStreak = 0; this.ecgStreakHz = NaN; this.ecgStatusText = "";
+    }
+
+    push(ir, red, ax, ay, az, ecg = NaN, rowIdx = -1) {
+      const fs = this.fs, w = this.w, R = this.rings, f = Math.fround;
+      ir = f(ir); red = f(red); ax = f(ax); ay = f(ay); az = f(az); if (!isNaN_(ecg)) ecg = f(ecg);
+      if (this.settleCount < this.settleSec * fs) {
+        this.settleCount++;
+        if (this.settleCount % fs === 0) {
+          const t = this.settleCount / fs;
+          this.emit(this.mk(t - this.winSec / 2, "WARMUP", { reason: "感測器穩定中" }), rowIdx);
+        }
+        return;
+      }
+      if (isNaN_(this.irOffset)) this.irOffset = ir;
+      if (isNaN_(this.redOffset)) this.redOffset = red;
+      const p = this.pos;
+      R.ir[p] = ir; R.red[p] = red; R.ax[p] = ax; R.ay[p] = ay; R.az[p] = az;
+      R.bp[p] = sosStep(SOS_256, this.bpState, ir - this.irOffset);
+      R.redBp[p] = sosStep(SOS_256, this.bpRedState, red - this.redOffset);
+      R.bpLow[p] = sosStep(SOS_LOW_256, this.bpLowState, ir - this.irOffset);
+      if (!isNaN_(ecg)) {
+        if (isNaN_(this.ecgOffset)) this.ecgOffset = ecg;
+        R.ecg[p] = sosStep(SOS_ECG_256, this.ecgState, ecg - this.ecgOffset);
+        R.ecgRaw[p] = ecg; this.ecgSeen = true;
+      }
+      this.pos = (p + 1) % w;
+      this.count++;
+      if (this.count % fs !== 0) return;
+      const tEnd = this.count / fs + this.settleSec;
+      if (this.count < w) { this.emit(this.mk(tEnd - this.winSec / 2, "WARMUP", { reason: "累積資料中" }), rowIdx); return; }
+      const o = k => { const r = R[k], out = new Float64Array(w); for (let i = 0; i < w; i++) out[i] = r[(this.pos + i) % w]; return out; };
+      const res = this.compute(tEnd - this.winSec / 2, o("ir"), o("red"), o("bp"), o("bpLow"), o("ax"), o("ay"), o("az"),
+        this.ecgSeen ? o("ecg") : null, this.ecgSeen ? o("ecgRaw") : null, o("redBp"));
+      this.emit(res, rowIdx);
+    }
+
+    mk(t, status, extra = {}) {
+      return Object.assign({ t, status, hr: NaN, hrTd: NaN, hrNaive: NaN, r: NaN, spo2Raw: NaN, spo2Out: NaN, method: "",
+        reason: "", ecgState: "", hrPpg: NaN, profile: "", rOut: NaN, rC: NaN, rCOut: NaN }, extra);
+    }
+    emit(r, rowIdx) { r.profile = this.profile.label; r.endIdx = rowIdx; this.onResult(r); }
+
+    // ---------------- 頻譜
+    spectrum(x, normalize) {
+      const n = x.length, nfft = this.nfft, kMax = this.kMax;
+      const mean = avg(x), iMean = (n - 1) / 2;
+      let sxy = 0, sxx = 0;
+      for (let i = 0; i < n; i++) { const d = i - iMean; sxy += d * (x[i] - mean); sxx += d * d; }
+      const slope = sxy / sxx;
+      const re = new Float64Array(nfft), im = new Float64Array(nfft);
+      for (let i = 0; i < n; i++) re[i] = (x[i] - (mean + slope * (i - iMean))) * this.hann[i];
+      fft(re, im);
+      const scale = normalize ? 2.0 / this.hannSum / mean : 1.0;
+      const amp = new Float64Array(kMax + 1), r = new Float64Array(kMax + 1), m = new Float64Array(kMax + 1);
+      for (let k = 0; k <= kMax; k++) {
+        r[k] = re[k] * scale; m[k] = im[k] * scale;
+        amp[k] = (normalize ? 100 : 1) * Math.sqrt(r[k] * r[k] + m[k] * m[k]);
+      }
+      return { amp, re: r, im: m };
+    }
+    kOf(f) { return Math.trunc(f / this.df + 0.5); }
+    candidates(a) {
+      const lo = Math.ceil(LOW_HZ / this.df), hi = Math.floor(HR_HI / this.df), out = [];
+      for (let k = lo + 1; k < hi; k++) if (a[k] > a[k - 1] && a[k] > a[k + 1]) out.push(k);
+      if (!out.includes(lo) && a[lo] > a[lo + 1]) out.push(lo);
+      return sortDesc(out, k => a[k]);
+    }
+    noiseFloor(a, fHr) {
+      const v = [];
+      for (let k = 0; k <= this.kMax; k++) {
+        const f = this.freq[k];
+        if (f < 0.8 || f > 5.0) continue;
+        if ([1, 2, 3].some(h => Math.abs(f - h * fHr) <= HALF_BW)) continue;
+        v.push(a[k]);
+      }
+      return median(v);
+    }
+    rAt(fHr, ir, red) {
+      let eIr = 0, eRd = 0, sxyRe = 0, sxyIm = 0, sxx = 0, syy = 0;
+      for (let k = 0; k <= this.kMax; k++) {
+        if (Math.abs(this.freq[k] - fHr) > HALF_BW) continue;
+        eIr += ir.amp[k] * ir.amp[k]; eRd += red.amp[k] * red.amp[k];
+        sxyRe += red.re[k] * ir.re[k] + red.im[k] * ir.im[k];
+        sxyIm += red.im[k] * ir.re[k] - red.re[k] * ir.im[k];
+        sxx += ir.re[k] * ir.re[k] + ir.im[k] * ir.im[k];
+        syy += red.re[k] * red.re[k] + red.im[k] * red.im[k];
+      }
+      const nf = this.noiseFloor(ir.amp, fHr);
+      let h2 = 0;
+      for (let k = 0; k <= this.kMax; k++) if (Math.abs(this.freq[k] - 2 * fHr) <= 0.1) h2 = Math.max(h2, ir.amp[k]);
+      return {
+        r: Math.sqrt(eRd / eIr),
+        coh: Math.sqrt(sxyRe * sxyRe + sxyIm * sxyIm) / Math.sqrt(sxx * syy),
+        snrDb: 20 * Math.log10(ir.amp[this.kOf(fHr)] / nf),
+        harmDb: h2 > 0 ? 20 * Math.log10(h2 / nf) : -Infinity,
+      };
+    }
+    harmDb(a, f, n) {
+      const nf = this.noiseFloor(a, f);
+      let h = 0;
+      for (let k = 0; k <= this.kMax; k++) if (Math.abs(this.freq[k] - n * f) <= 0.1) h = Math.max(h, a[k]);
+      return h > 0 && nf > 0 ? 20 * Math.log10(h / nf) : -Infinity;
+    }
+    respHz(az) {
+      const a = this.spectrum(az, false).amp, fr = this.freq, band = [];
+      for (let k = 0; k <= this.kMax; k++) if (fr[k] >= 0.05 && fr[k] <= 1.5) band.push(a[k]);
+      const med = median(band);
+      if (!(med > 0)) return NaN;
+      let best = -1;
+      for (let k = 0; k <= this.kMax; k++) if (fr[k] >= RESP_LO && fr[k] <= RESP_HI && (best < 0 || a[k] > a[best])) best = k;
+      if (best < 0) return NaN;
+      return a[best] >= RESP_PEAK_X * med ? fr[best] : NaN;
+    }
+    accRatio(ax, ay, az, fHr) {
+      const sx = this.spectrum(ax, false).amp, sy = this.spectrum(ay, false).amp, sz = this.spectrum(az, false).amp;
+      const band = []; let peak = -Infinity, any = false;
+      for (let k = 0; k <= this.kMax; k++) {
+        const a = Math.sqrt(sx[k] * sx[k] + sy[k] * sy[k] + sz[k] * sz[k]), f = this.freq[k];
+        if (f >= HR_LO && f <= HR_HI) band.push(a);
+        if (Math.abs(f - fHr) <= 0.05) { peak = Math.max(peak, a); any = true; }
+      }
+      if (!any) peak = 0;
+      const med = median(band);
+      return med > 0 ? peak / med : NaN;
+    }
+
+    // ---------------- 時域
+    static prom(y, i, lim) {
+      const yi = y[i], n = y.length;
+      let lMin = yi, j = i - 1;
+      while (j >= 0 && i - j <= lim && y[j] <= yi) { if (y[j] < lMin) lMin = y[j]; j--; }
+      let rMin = yi; j = i + 1;
+      while (j < n && j - i <= lim && y[j] <= yi) { if (y[j] < rMin) rMin = y[j]; j++; }
+      return yi - Math.max(lMin, rMin);
+    }
+    keepMinDist(cand, h) {
+      const dist = Math.trunc(MIN_IBI_S * this.fs), kept = [];
+      for (const p of sortDesc(cand, i => h[i])) if (!kept.some(k => Math.abs(k - p) < dist)) kept.push(p);
+      return kept.sort((a, b) => a - b);
+    }
+    detectBeats(bp) {
+      const fs = this.fs, n = bp.length, y = new Float64Array(n);
+      for (let i = 0; i < n; i++) y[i] = -bp[i];
+      const blk = fs >> 2, half = fs, nb = Math.ceil(n / blk), env = new Float64Array(nb);
+      for (let b = 0; b < nb; b++) {
+        const c = b * blk + (blk >> 1), v = [];
+        for (let i = Math.max(0, c - half); i < Math.min(n, c + half); i++) v.push(Math.abs(y[i]));
+        env[b] = median(v);
+      }
+      const lim = Math.trunc(1.5 * fs), cand = [], prom = new Map();
+      for (let i = 1; i < n - 1; i++) {
+        if (!(y[i] > y[i - 1] && y[i] >= y[i + 1])) continue;
+        const p = ChestSpO2.prom(y, i, lim);
+        if (p >= 0.5 * env[Math.trunc(i / blk)]) { cand.push(i); prom.set(i, p); }
+      }
+      let kept = this.keepMinDist(cand, y);
+      if (kept.length >= 4) {
+        const ps = kept.map(k => prom.get(k) ?? 0).sort((a, b) => a - b);
+        const big = ps[Math.trunc(0.75 * (ps.length - 1))];
+        kept = kept.filter(k => !((prom.get(k) ?? 0) < SMALL_WAVE_RATIO * big));
+      }
+      const out = [];
+      for (const p of kept) {
+        if (!out.length) { out.push(p); continue; }
+        let ref = NaN;
+        if (out.length >= 3) { const r = out.slice(-8); ref = (r[r.length - 1] - r[0]) / (r.length - 1) / fs; }
+        const lo = isNaN_(ref) ? MIN_IBI_S : Math.max(MIN_IBI_S, 0.5 * ref);
+        if ((p - out[out.length - 1]) / fs < lo) { if (y[p] > y[out[out.length - 1]]) out[out.length - 1] = p; continue; }
+        out.push(p);
+      }
+      return out;
+    }
+    detectEcgBeats(bp) {
+      const n = bp.length, e = new Float64Array(n);
+      for (let i = 0; i < n; i++) e[i] = Math.abs(bp[i]);
+      const s = Float64Array.from(e).sort();
+      const p99 = s[Math.trunc(0.99 * (n - 1))], med = s[n >> 1];
+      if (!(med > 0) || p99 / med < ECG_PEAK_RATIO) return [];
+      const minProm = 0.4 * p99, lim = Math.trunc(0.5 * this.fs), cand = [];
+      for (let i = 1; i < n - 1; i++) {
+        if (!(e[i] > e[i - 1] && e[i] >= e[i + 1])) continue;
+        if (ChestSpO2.prom(e, i, lim) >= minProm) cand.push(i);
+      }
+      const kept = this.keepMinDist(cand, e);
+      if (kept.length < 4) return kept;
+      const rrs = []; for (let i = 1; i < kept.length; i++) rrs.push(kept[i] - kept[i - 1]);
+      const medRr = median(rrs), medAmp = median(kept.map(k => e[k])), out = [];
+      for (const p of kept) {
+        if (out.length && p - out[out.length - 1] < ECG_T_RR_RATIO * medRr && e[p] < ECG_T_RR_RATIO * medAmp) continue;
+        out.push(p);
+      }
+      const amps = out.map(k => e[k]), m = avg(amps);
+      const cv = Math.sqrt(amps.reduce((s, a) => s + (a - m) * (a - m), 0) / amps.length) / m;
+      return cv > ECG_AMP_CV_MAX ? [] : out;
+    }
+    static longestZeroRun(raw) {
+      let best = 0, run = 0;
+      for (const v of raw) { if (v === 0) { run++; if (run > best) best = run; } else run = 0; }
+      return best;
+    }
+    rEnsemble(irBp, redBp, dcIr, dcRd, beats) {
+      if (beats.length < 4 || !(dcIr > 0 && dcRd > 0)) return NaN;
+      const gaps = []; for (let i = 1; i < beats.length; i++) gaps.push(beats[i] - beats[i - 1]);
+      const rr = Math.trunc(median(gaps)), pre = Math.trunc(0.1 * this.fs);
+      if (rr <= pre) return NaN;
+      const segIr = [], segRd = [];
+      beats.forEach((p, j) => {
+        if (j > 0 && Math.abs(gaps[j - 1] - rr) > 0.25 * rr) return;
+        const a = p - pre, b = a + rr;
+        if (a < 0 || b > irBp.length) return;
+        const si = irBp.subarray(a, b), sr = redBp.subarray(a, b), mi = avg(si), mr = avg(sr);
+        segIr.push(si.map(v => v - mi)); segRd.push(sr.map(v => v - mr));
+      });
+      if (segIr.length < 3) return NaN;
+      let maxI = -Infinity, minI = Infinity, maxR = -Infinity, minR = Infinity;
+      for (let k = 0; k < rr; k++) {
+        const ai = median(segIr.map(s => s[k])), ar = median(segRd.map(s => s[k]));
+        maxI = Math.max(maxI, ai); minI = Math.min(minI, ai); maxR = Math.max(maxR, ar); minR = Math.min(minR, ar);
+      }
+      const acIr = maxI - minI, acRd = maxR - minR;
+      if (!(acIr > 0)) return NaN;
+      return (acRd / dcRd) / (acIr / dcIr);
+    }
+
+    // ---------------- 每秒計算
+    compute(tc, ir, red, bp, bpLow, ax, ay, az, ecgBp, ecgRaw, bpRed) {
+      const fs = this.fs, P = this.profile;
+      this.track = this.track.filter(x => !(tc - x[0] > TRACK_S));
+      this.trackPpg = this.trackPpg.filter(x => !(tc - x[0] > TRACK_S));
+      this.ecgStatusText = ecgBp == null ? "未提供" : "";
+      const ref = this.track.length ? median(this.track.map(x => x[1])) : NaN;
+      const tol = this.tolBpm / 60.0;
+      const dcIr = avg(ir), dcRd = avg(red);
+      if (!(dcIr > 0 && dcRd > 0) || !fin(dcIr) || !fin(dcRd))
+        return this.finish(tc, false, NaN, NaN, NaN, NaN, "", "PPG 訊號異常（DC ≤ 0 或離身）");
+      const sIr = this.spectrum(ir, true), sRd = this.spectrum(red, true);
+      const all = this.candidates(sIr.amp);
+      if (!all.length) return this.finish(tc, false, NaN, NaN, NaN, NaN, "", "頻譜在 0.5–3.6 Hz 沒有峰");
+      const fNaive = this.freq[all[0]];
+      const cf = all.map(k => this.freq[k]).filter(f => f >= LOW_HZ);
+      const resp = this.respHz(az);
+      const lowCache = new Map();
+      const lowOk = f => {
+        if (f >= EDGE_HZ) return true;
+        if (!(PPG_LOW_HR && P.ppgLowHr)) return false;
+        if (!lowCache.has(f)) lowCache.set(f, this.harmDb(sIr.amp, f, 2) >= LOW_HARM2_DB && this.harmDb(sIr.amp, f, 3) >= LOW_HARM3_DB &&
+          (isNaN_(resp) || ![1, 2, 3, 4].some(h => Math.abs(f - h * resp) <= RESP_TOL)));
+        return lowCache.get(f);
+      };
+      const cfPpg = cf.filter(lowOk);
+      const tdFrom = beats => {
+        const ibi = []; for (let i = 1; i < beats.length; i++) ibi.push((beats[i] - beats[i - 1]) / fs);
+        if (ibi.length < 3) return [NaN, false];
+        const m = avg(ibi), cv = Math.sqrt(ibi.reduce((s, x) => s + (x - m) * (x - m), 0) / ibi.length) / m;
+        return [1.0 / median(ibi), cv <= IBI_CV_MAX];
+      };
+      let ppgTd;
+      { const [hL, okL] = tdFrom(this.detectBeats(bpLow));
+        ppgTd = (okL && hL < EDGE_HZ && cfPpg.some(f => Math.abs(f - hL) <= tol)) ? [hL, true] : tdFrom(this.detectBeats(bp)); }
+      let useEcg = ecgBp != null;
+      const leadOff = ecgRaw != null && ChestSpO2.longestZeroRun(ecgRaw) >= Math.trunc(ECG_ZERO_RUN_S * fs);
+      const ecgBeats = useEcg && !leadOff ? this.detectEcgBeats(ecgBp) : [];
+      let [hrTd, tdOk] = useEcg ? tdFrom(ecgBeats) : ppgTd;
+      let confirming = false;
+      if (useEcg) {
+        if (tdOk && (isNaN_(this.ecgStreakHz) || Math.abs(hrTd - this.ecgStreakHz) <= tol)) this.ecgStreak++;
+        else this.ecgStreak = tdOk ? 1 : 0;
+        this.ecgStreakHz = tdOk ? hrTd : NaN;
+        if (tdOk && this.ecgStreak < ECG_CONFIRM_S) { tdOk = false; confirming = true; }
+      }
+      this.ecgStatusText = !useEcg ? "未提供" : leadOff ? "離身（全 0）" : !ecgBeats.length ? "無訊號"
+        : confirming ? `有訊號（確認中 ${(60 * hrTd).toFixed(0)} bpm）` : !tdOk ? "有訊號但不規律" : `有訊號（${(60 * hrTd).toFixed(0)} bpm）`;
+      if (useEcg && !tdOk) { useEcg = false; if (ppgTd[1]) { hrTd = ppgTd[0]; tdOk = true; } }
+      const tdName = ecgBp != null ? "ECG 與 PPG 時域都不可信" : "時域不可信";
+
+      let fPpg = NaN;
+      const [hrPpgTd, ppgTdOk] = ppgTd;
+      if (ppgTdOk) fPpg = cfPpg.find(f => Math.abs(f - hrPpgTd) <= tol) ?? NaN;
+      if (!isNaN_(fPpg) && this.trackPpg.length && Math.abs(median(this.trackPpg.map(x => x[1])) - 2 * fPpg) <= 2 * tol) this.trackPpg = [];
+      if (isNaN_(fPpg) && this.trackPpg.length) {
+        const refPpg = median(this.trackPpg.map(x => x[1]));
+        fPpg = cfPpg.filter(f => Math.abs(f - refPpg) <= tol).find(f => this.rAt(f, sIr, sRd).harmDb >= HARM_DB) ?? NaN;
+      }
+      if (!isNaN_(fPpg)) this.trackPpg.push([tc, fPpg]);
+
+      let fHr = NaN, method = ""; const why = [];
+      if (tdOk) {
+        const c = (useEcg ? cf : cfPpg).find(f => Math.abs(f - hrTd) <= tol);
+        if (c !== undefined) {
+          const octaveDown = !isNaN_(ref) && Math.abs(ref - 2 * c) <= 2 * tol;
+          if (!useEcg && !octaveDown && !isNaN_(ref) && Math.abs(c - ref) > JUMP_X * tol) why.push("心率突然跳離追蹤值");
+          else {
+            fHr = c; method = useEcg ? "ECG+頻域" : "時域+頻域";
+            if (!isNaN_(ref) && Math.abs(c - ref) > JUMP_X * tol) this.track = [];
+          }
+        } else why.push(useEcg ? "頻譜沒有和 ECG 一致的峰" : "時域與頻域不一致");
+      } else why.push(tdName);
+      if (isNaN_(fHr) && !useEcg && !isNaN_(ref)) {
+        const c = cfPpg.filter(f => Math.abs(f - ref) <= tol).find(f => this.rAt(f, sIr, sRd).harmDb >= HARM_DB);
+        if (c !== undefined) { fHr = c; method = "頻域+追蹤"; why.length = 0; } else why.push("追蹤附近無可信峰");
+      }
+      let r = NaN, valid = false;
+      if (!isNaN_(fHr)) {
+        const q = this.rAt(fHr, sIr, sRd); r = q.r;
+        if (method !== "ECG+頻域" && this.accRatio(ax, ay, az, fHr) > ACC_RATIO) why.push("動作（加速度計同頻率有峰）");
+        if (!(q.snrDb >= this.snrMinDb)) why.push("心跳峰不明顯");
+        if (!(q.coh >= this.cohMin)) why.push("Red/IR 不同步");
+        if (!(fin(r) && r > 0)) why.push("R 值異常");
+        else if (r > P.rMax) why.push(`R 過高（>${P.rMax.toFixed(1)}）`);
+        valid = why.length === 0;
+      }
+      const rC = useEcg && bpRed != null && ecgBeats.length >= 4 ? this.rEnsemble(bp, bpRed, dcIr, dcRd, ecgBeats) : NaN;
+      return this.finish(tc, valid, fHr, r, hrTd, fNaive, method, why.join("、"), fPpg, rC);
+    }
+
+    finish(tc, valid, fHr, r, hrTd, fNaive, method, reason, fPpg = NaN, rC = NaN) {
+      const P = this.profile;
+      if (!isNaN_(fPpg)) { this.lastPpgHr = 60 * fPpg; this.lastPpgT = tc; }
+      else if (!isNaN_(this.lastPpgT) && tc - this.lastPpgT > MAX_HOLD_S) { this.lastPpgHr = NaN; this.lastPpgT = NaN; }
+      const spo2Raw = valid ? calibrate(P, r) : NaN;
+      let status;
+      if (valid) {
+        this.track.push([tc, fHr]); this.hist.push([tc, r]);
+        this.hist = this.hist.filter(x => !(tc - x[0] > SMOOTH_S));
+        this.lastROut = median(this.hist.map(x => x[1]));
+        const raw = calibrate(P, this.lastROut);
+        this.lastOut = CAP_AT_100 ? Math.min(raw, 100) : raw;
+        this.lastValidT = tc;
+        if (fin(rC) && rC > 0) this.histC.push([tc, rC]);
+        status = "UPDATE";
+      } else if (!isNaN_(this.lastValidT) && tc - this.lastValidT <= MAX_HOLD_S) status = "HOLD";
+      else {
+        this.lastOut = NaN; this.lastROut = NaN; this.lastValidT = NaN; this.hist = []; this.histC = [];
+        status = "NO_OUTPUT";
+      }
+      this.histC = this.histC.filter(x => !(tc - x[0] > SMOOTH_S));
+      this.lastRCOut = this.histC.length ? median(this.histC.map(x => x[1])) : NaN;
+      return this.mk(tc, status, { hr: 60 * fHr, hrTd: 60 * hrTd, hrNaive: 60 * fNaive, r, spo2Raw, spo2Out: this.lastOut,
+        method, reason, ecgState: this.ecgStatusText, hrPpg: this.lastPpgHr, rOut: this.lastROut, rC, rCOut: this.lastRCOut });
+    }
+  }
+  return { ChestSpO2, PROFILES, calibrate };
+})();
+if (typeof module !== "undefined") module.exports = CS;
+
+</script>
+
+<script id="worker-src" type="text/plain">
+const FS = 256;
+let D = null;  // 解析後的資料
+const SOS_PPG = [[0.00692579317245211,0.01385158634490421,0.00692579317245211,1.0,-1.7704843631935339,0.7997563419186986],[1.0,-2.0,1.0,1.0,-1.9734389194532516,0.9738890857514404]];
+const SOS_ECG = [[0.02670707213833988,0.05341414427667976,0.02670707213833988,1.0,-1.5202802119153467,0.6755509842066412],[1.0,-2.0,1.0,1.0,-1.861462139896686,0.8796977999256663]];
+function sosfilt(sos, x){ // 單向（與 App 即時濾波相同），扣掉第一個樣本避免暫態
+  const st = sos.map(()=>[0,0]), y = new Float32Array(x.length), off = x[0];
+  for (let i=0;i<x.length;i++){ let v = x[i]-off;
+    for (let s=0;s<sos.length;s++){ const c=sos[s], z=st[s]; const o=c[0]*v+z[0]; z[0]=c[1]*v-c[4]*o+z[1]; z[1]=c[2]*v-c[5]*o; v=o; }
+    y[i]=v; }
+  return y;
+}
+function parse(text){
+  text = text.replace(/^﻿/, "");
+  const nl = text.indexOf("\n");
+  const hdr = text.slice(0, nl).split(",").map(s=>s.trim().replace(/\r$/,""));
+  const need = ["Time","PPG_IR","PPG_RED"];
+  for (const n of need) if (hdr.indexOf(n) < 0) throw new Error("CSV 缺少欄位：" + n);
+  const names = ["Time","ECG","PPG_IR","PPG_RED","ACC_X","ACC_Y","ACC_Z","GYRO_X","GYRO_Y","GYRO_Z","TEMPERATURE"];
+  const idx = names.map(n=>hdr.indexOf(n));
+  const lines = text.slice(nl+1).split("\n");
+  let n = 0; for (const l of lines) if (l.trim()) n++;
+  const cols = {}; for (const nm of names) cols[nm] = (nm==="Time") ? new Float64Array(n) : new Float32Array(n);
+  const meta = {}; const mIdx = {PatientCode:hdr.indexOf("PatientCode"), Age:hdr.indexOf("Age"), Sex:hdr.indexOf("Sex")};
+  let r = 0;
+  for (const l of lines){
+    if (!l.trim()) continue;
+    const c = l.split(",");
+    for (let k=0;k<names.length;k++){ const j = idx[k]; cols[names[k]][r] = j<0 ? NaN : parseFloat(c[j]); }
+    for (const m in mIdx){ const j = mIdx[m]; if (j>=0 && !(m in meta)){ const v=(c[j]||"").trim(); if (v) meta[m]=v; } }
+    r++;
+    if ((r & 32767) === 0) postMessage({type:"progress", stage:"讀取", frac: r/n});
+  }
+  // 格式判斷
+  const T = cols.Time; let back = 0, onGrid = 0;
+  for (let i=0;i<n;i++){ if (Math.abs(T[i]*FS - Math.round(T[i]*FS)) < 0.01) onGrid++; if (i && T[i] < T[i-1]) back++; }
+  let fmt, t, gaps = [];
+  if (back === 0 && onGrid/n > 0.99){
+    fmt = "new"; t = T;
+    for (let i=1;i<n;i++){ const s = Math.round((T[i]-T[i-1])*FS); if (s > 1) gaps.push({row:i, t:T[i-1], missing:s-1}); }
+  } else {
+    fmt = "old"; t = new Float64Array(n); for (let i=0;i<n;i++) t[i] = i/FS;
+  }
+  const hasEcg = idx[1] >= 0;
+  return {n, fmt, t, cols, gaps, back, meta, hasEcg,
+    irBp: sosfilt(SOS_PPG, cols.PPG_IR), redBp: sosfilt(SOS_PPG, cols.PPG_RED), ecgBp: hasEcg ? sosfilt(SOS_ECG, cols.ECG) : null};
+}
+function run(opt){
+  const res = [], c = D.cols;
+  const alg = new CS.ChestSpO2(opt.profile, {settleSec: opt.settle}, r => res.push(r));
+  const resetRows = new Set(opt.resetGap && D.fmt === "new" ? D.gaps.map(g=>g.row) : []);
+  const useEcg = opt.useEcg && D.hasEcg;
+  for (let i=0;i<D.n;i++){
+    if (resetRows.has(i)) alg.reset();
+    alg.push(c.PPG_IR[i], c.PPG_RED[i], c.ACC_X[i], c.ACC_Y[i], c.ACC_Z[i], useEcg ? c.ECG[i] : NaN, i);
+    if ((i & 16383) === 0) postMessage({type:"progress", stage:"計算", frac: i/D.n});
+  }
+  postMessage({type:"results", res});
+}
+onmessage = e => {
+  const m = e.data;
+  try {
+    if (m.type === "load"){
+      D = parse(m.text);
+      const out = {n:D.n, fmt:D.fmt, t:D.t, gaps:D.gaps, back:D.back, meta:D.meta, hasEcg:D.hasEcg, cols:{}, irBp:D.irBp, redBp:D.redBp, ecgBp:D.ecgBp};
+      for (const k in D.cols) if (k !== "Time") out.cols[k] = D.cols[k].slice();
+      const tr = [out.t.buffer.slice(0)]; out.t = new Float64Array(tr[0]);
+      postMessage({type:"data", d: out});
+      run(m.opt);
+    } else if (m.type === "run"){ run(m.opt); }
+  } catch (err) { postMessage({type:"error", msg: String(err && err.message || err)}); }
+};
+</script>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const FS = 256;
+const worker = new Worker(URL.createObjectURL(new Blob([$("alg-src").textContent, "\n", $("worker-src").textContent], {type:"text/javascript"})));
+let D = null, RES = [], RES_T = null, fileName = "";
+let cur = 0, playing = false, lastTs = 0;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------------- 檔案
+const drop = $("drop"), fileIn = $("file");
+drop.onclick = () => fileIn.click();
+fileIn.onchange = () => fileIn.files[0] && loadFile(fileIn.files[0]);
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]));
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+const opts = () => ({profile:$("profile").value, settle:+$("settle").value||0, useEcg:$("useEcg").checked, resetGap:$("resetGap").checked});
+function loadFile(f){
+  fileName = f.name; stop();
+  $("info").textContent = "讀取 " + f.name + " …"; showProg(0);
+  const rd = new FileReader();
+  rd.onload = () => worker.postMessage({type:"load", text: rd.result, opt: opts()});
+  rd.readAsText(f);
+}
+$("rerun").onclick = () => { if (D){ showProg(0); worker.postMessage({type:"run", opt: opts()}); } };
+["profile","useEcg","resetGap"].forEach(id => $(id).addEventListener("change", () => $("rerun").click()));
+$("settle").addEventListener("change", () => $("rerun").click());
+
+function showProg(f){ $("prog").style.display = "block"; $("prog").firstChild.style.width = (100*f).toFixed(1)+"%"; }
+function hideProg(){ $("prog").style.display = "none"; }
+
+worker.onmessage = e => {
+  const m = e.data;
+  if (m.type === "progress"){ showProg(m.stage === "讀取" ? m.frac*0.3 : 0.3 + m.frac*0.7); }
+  else if (m.type === "error"){ hideProg(); $("info").textContent = "錯誤：" + m.msg; }
+  else if (m.type === "data"){
+    D = m.d; cur = Math.min(D.t[D.n-1], D.t[0] + (+$("win").value));
+    const lost = D.gaps.reduce((s,g)=>s+g.missing, 0);
+    let s = `${fileName}\n${D.fmt==="new" ? "新版 CSV（Time = 序號/256）" : "舊版 CSV（原始 Time 倒退 "+D.back+" 次，已重建為 列號/256）"} · ${D.n} 樣本（${(D.n/FS).toFixed(1)} s）`;
+    if (D.fmt === "new") s += ` · 掉包 ${D.gaps.length} 處，共 ${lost} 樣本（${(100*lost/(D.n+lost)).toFixed(2)}%）`;
+    if (!D.hasEcg) s += " · 無 ECG 欄";
+    const mt = Object.entries(D.meta).map(([k,v])=>k+"="+v).join("、"); if (mt) s += " · " + mt;
+    $("info").textContent = s;
+    $("resetGap").disabled = D.fmt !== "new";
+    ["play","seek","rerun"].forEach(id => $(id).disabled = false);
+    RES = []; draw();
+  }
+  else if (m.type === "results"){
+    hideProg(); RES = m.res;
+    RES_T = Float64Array.from(RES, r => D.t[Math.max(0, r.endIdx)]);
+    $("export").disabled = false;
+    stats(); draw();
+  }
+};
+
+// ---------------- 播放
+const tMin = () => D ? D.t[0] : 0, tMax = () => D ? D.t[D.n-1] : 0;
+function setCur(t){ if (!D) return; cur = Math.max(tMin(), Math.min(tMax(), t)); draw(); }
+function stop(){ playing = false; $("play").textContent = "▶ 播放"; }
+$("play").onclick = () => {
+  if (!D) return;
+  if (playing) { stop(); return; }
+  if (cur >= tMax() - 1e-6) cur = tMin() + (+$("win").value);
+  playing = true; $("play").textContent = "⏸ 暫停"; lastTs = performance.now(); requestAnimationFrame(tick);
+};
+function tick(ts){
+  if (!playing) return;
+  const dt = Math.min(0.25, (ts - lastTs) / 1000); lastTs = ts;
+  cur += dt * (+$("speed").value);
+  if (cur >= tMax()) { cur = tMax(); stop(); }
+  draw();
+  if (playing) requestAnimationFrame(tick);
+}
+$("seek").oninput = e => setCur(tMin() + (e.target.value/1000) * (tMax()-tMin()));
+["win","filt"].forEach(id => $(id).addEventListener("change", draw));
+document.addEventListener("keydown", e => {
+  if (!D || /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "range") return;
+  if (e.code === "Space"){ e.preventDefault(); $("play").click(); }
+  else if (e.code === "ArrowRight"){ e.preventDefault(); setCur(cur + (e.shiftKey?10:1)); }
+  else if (e.code === "ArrowLeft"){ e.preventDefault(); setCur(cur - (e.shiftKey?10:1)); }
+});
+window.addEventListener("resize", draw);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+
+// 波形拖曳平移 / 滾輪縮放
+const wave = $("wave");
+let dragX = null, dragCur = 0;
+wave.addEventListener("pointerdown", e => { dragX = e.clientX; dragCur = cur; wave.setPointerCapture(e.pointerId); stop(); });
+wave.addEventListener("pointermove", e => { if (dragX === null) return; const W = wave.clientWidth - 70; setCur(dragCur - (e.clientX - dragX) / W * (+$("win").value)); });
+wave.addEventListener("pointerup", () => dragX = null);
+wave.addEventListener("wheel", e => {
+  e.preventDefault();
+  const sel = $("win"), opts = [...sel.options].map(o=>o.value), i = opts.indexOf(sel.value);
+  sel.value = opts[Math.max(0, Math.min(opts.length-1, i + (e.deltaY > 0 ? 1 : -1)))]; draw();
+}, {passive:false});
+// 趨勢點擊跳轉
+const trend = $("trend");
+let tDrag = false;
+const trendSeek = e => { if (!D) return; const r = trend.getBoundingClientRect(), L = 56, W = r.width - L - 14; setCur(tMin() + (e.clientX - r.left - L) / W * (tMax()-tMin())); };
+trend.addEventListener("pointerdown", e => { tDrag = true; trend.setPointerCapture(e.pointerId); trendSeek(e); });
+trend.addEventListener("pointermove", e => tDrag && trendSeek(e));
+trend.addEventListener("pointerup", () => tDrag = false);
+
+// ---------------- 繪圖工具
+function prep(cv){
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+  cv.style.height = h + "px";
+  if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)) { cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+  return {ctx, w, h};
+}
+function lowerBound(a, x){ let lo = 0, hi = a.length; while (lo < hi){ const m = (lo+hi)>>1; if (a[m] < x) lo = m+1; else hi = m; } return lo; }
+function niceTicks(lo, hi, n){
+  const span = hi - lo; if (!(span > 0)) return [lo];
+  const step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1,2,2.5,5,10].map(s=>s*mag).find(s => span/s <= n) || 10*mag;
+  const out = []; for (let v = Math.ceil(lo/step)*step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+const fmtTick = v => { const a = Math.abs(v); return a >= 1e5 ? (v/1000).toFixed(0)+"k" : a >= 1000 ? v.toFixed(0) : a >= 10 ? v.toFixed(1).replace(/\.0$/,"") : +v.toPrecision(3)+""; };
+function frame(ctx, x, y, w, h, label){
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.strokeRect(x+.5, y+.5, w, h);
+  if (label){ ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.fillText(label, x + 6, y + 13); }
+}
+function yAxis(ctx, x, y, w, h, lo, hi, n=3){
+  ctx.font = "10.5px system-ui"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of niceTicks(lo, hi, n)){
+    const yy = y + h - (v - lo) / (hi - lo) * h; if (yy < y+2 || yy > y+h-2) continue;
+    ctx.strokeStyle = css("--grid"); ctx.beginPath(); ctx.moveTo(x, Math.round(yy)+.5); ctx.lineTo(x+w, Math.round(yy)+.5); ctx.stroke();
+    ctx.fillStyle = css("--muted"); ctx.fillText(fmtTick(v), x - 5, yy);
+  }
+  ctx.textBaseline = "alphabetic";
+}
+// min/max 抽稀畫線（波形）
+function drawSeries(ctx, t, y, i0, i1, x0, x1, X, Y, H, lo, hi, color){
+  ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath();
+  const sx = X.w / (x1 - x0), sy = H / (hi - lo);
+  const px = i => X.x + (t[i] - x0) * sx, py = v => Y + H - (v - lo) * sy;
+  let started = false, col = -1, mn = 0, mx = 0, prevT = -Infinity;
+  const flush = () => { if (col < 0) return; ctx.lineTo(col, py(mn)); ctx.lineTo(col, py(mx)); };
+  for (let i = i0; i < i1; i++){
+    const v = y[i]; if (!Number.isFinite(v)) { flush(); col = -1; started = false; continue; }
+    if (t[i] - prevT > 1.5/FS && started){ flush(); col = -1; started = false; } // 掉包處斷線
+    prevT = t[i];
+    const c = Math.floor(px(i));
+    if (!started){ ctx.moveTo(px(i), py(v)); started = true; col = c; mn = mx = v; continue; }
+    if (c === col){ if (v < mn) mn = v; if (v > mx) mx = v; }
+    else { flush(); col = c; mn = mx = v; ctx.lineTo(px(i), py(v)); }
+  }
+  flush(); ctx.stroke();
+}
+function rangeOf(arrs, i0, i1){
+  let lo = Infinity, hi = -Infinity;
+  for (const a of arrs) for (let i = i0; i < i1; i++){ const v = a[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
+  if (!Number.isFinite(lo)) return [0, 1];
+  if (hi - lo < 1e-9){ lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.08; return [lo - pad, hi + pad];
+}
+
+// ---------------- 波形
+function drawWave(){
+  const {ctx, w, h} = prep(wave);
+  if (!D){ ctx.fillStyle = css("--muted"); ctx.font = "13px system-ui"; ctx.textAlign = "center"; ctx.fillText("尚未載入 CSV", w/2, h/2); return; }
+  const win = +$("win").value, x1 = Math.max(cur, tMin() + Math.min(win, tMax()-tMin())), x0 = x1 - win;
+  const i0 = Math.max(0, lowerBound(D.t, x0) - 1), i1 = Math.min(D.n, lowerBound(D.t, x1) + 1);
+  const L = 56, R = 14, X = {x: L, w: w - L - R};
+  const bp = $("filt").value === "bp", c = D.cols;
+  const panels = [
+    {label: bp ? "ECG（5–20 Hz 帶通）" : "ECG（原始）", ser: [[bp && D.ecgBp ? D.ecgBp : c.ECG, css("--ecg")]], r: 1, ecg: true},
+    {label: bp ? "PPG IR（0.8–8 Hz 帶通，向下 = 收縮期）" : "PPG IR（原始）", ser: [[bp ? D.irBp : c.PPG_IR, css("--ir")]], r: 1},
+    {label: bp ? "PPG RED（0.8–8 Hz 帶通）" : "PPG RED（原始）", ser: [[bp ? D.redBp : c.PPG_RED, css("--red")]], r: 1},
+    {label: "ACC X / Y / Z", ser: [[c.ACC_X, css("--ax")], [c.ACC_Y, css("--ay")], [c.ACC_Z, css("--az")]], r: 1},
+  ];
+  const gapH = 10, top = 4, bottom = 22, totalR = panels.reduce((s,p)=>s+p.r,0);
+  const ph = (h - top - bottom - gapH*(panels.length-1)) / totalR;
+  let y = top;
+  for (const p of panels){
+    const H = ph * p.r;
+    let [lo, hi] = rangeOf(p.ser.map(s=>s[0]), i0, i1);
+    // 帶通暫態（開頭）會把刻度撐爆 → 用 1–99 百分位
+    if (bp && !p.label.startsWith("ACC")) { const v = []; const a = p.ser[0][0]; const st = Math.max(1, Math.floor((i1-i0)/4000));
+      for (let i=i0;i<i1;i+=st) if (Number.isFinite(a[i])) v.push(a[i]); v.sort((a,b)=>a-b);
+      if (v.length > 20){ const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)], pad=(q9-q1)*.15||1; lo = q1-pad; hi = q9+pad; } }
+    frame(ctx, X.x, y, X.w, H, "");
+    yAxis(ctx, X.x, y, X.w, H, lo, hi, 3);
+    ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, H); ctx.clip();
+    for (const [arr, col] of p.ser) drawSeries(ctx, D.t, arr, i0, i1, x0, x1, X, y, H, lo, hi, col);
+    // 掉包
+    ctx.strokeStyle = css("--gap"); ctx.setLineDash([3,3]);
+    for (const g of D.gaps){ const gx = X.x + (g.t + 0.5/FS - x0) / win * X.w; if (gx >= X.x && gx <= X.x + X.w){ ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y+H); ctx.stroke(); } }
+    ctx.setLineDash([]);
+    ctx.restore();
+    ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "left";
+    ctx.fillText(p.label, X.x + 6, y + 13);
+    y += H + gapH;
+  }
+  // 時間軸
+  ctx.fillStyle = css("--muted"); ctx.font = "10.5px system-ui"; ctx.textAlign = "center";
+  for (const v of niceTicks(x0, x1, 8)){ const xx = X.x + (v - x0)/win*X.w; if (xx < X.x || xx > X.x+X.w) continue; ctx.fillText(v.toFixed(win <= 10 ? 1 : 0) + " s", xx, h - 6); }
+  // 掉包說明（目前畫面）
+  const vis = D.gaps.filter(g => g.t >= x0 && g.t <= x1);
+  if (vis.length){ ctx.textAlign = "right"; ctx.fillStyle = css("--gap"); ctx.fillText("畫面內掉包：" + vis.map(g => g.missing + " 樣本").join("、"), X.x + X.w, h - 6); }
+}
+
+// ---------------- 趨勢
+function drawTrend(){
+  const {ctx, w, h} = prep(trend);
+  if (!D) return;
+  const L = 56, R = 14, X = {x: L, w: w - L - R}, x0 = tMin(), x1 = tMax(), span = x1 - x0 || 1;
+  const px = t => X.x + (t - x0) / span * X.w;
+  const panels = [
+    {label: "SpO2 (%)", ser: [["spo2Raw", css("--muted"), 1, true], ["spo2Out", css("--accent"), 2]], minSpan: 6},
+    {label: "R", ser: [["r", css("--ir"), 1, true], ["rOut", css("--accent"), 2], ["rCOut", css("--az"), 1.6]], minSpan: 0.1},
+    {label: "HR (bpm)", ser: [["hr", css("--red"), 1.6], ["hrPpg", css("--ecg"), 1.2]], minSpan: 20},
+  ];
+  const gapH = 10, top = 4, bottom = 22, ph = (h - top - bottom - gapH*(panels.length-1)) / panels.length;
+  const stCol = {UPDATE: css("--st-update"), HOLD: css("--st-hold"), NO_OUTPUT: css("--st-no"), WARMUP: css("--st-warm")};
+  let y = top;
+  for (const p of panels){
+    // 範圍：用有效值的 1–99 百分位，避免單秒離群值壓扁曲線
+    const vals = []; for (const r of RES) for (const [k, , , dots] of p.ser) { if (dots) continue; const v = r[k]; if (Number.isFinite(v)) vals.push(v); }
+    vals.sort((a,b)=>a-b);
+    let lo, hi;
+    if (vals.length){ lo = vals[Math.floor(vals.length*.01)]; hi = vals[Math.floor(vals.length*.99)]; } else { lo = 0; hi = 1; }
+    if (hi - lo < p.minSpan){ const m = (hi+lo)/2; lo = m - p.minSpan/2; hi = m + p.minSpan/2; }
+    const pad = (hi-lo)*.1; lo -= pad; hi += pad;
+    // 狀態底色
+    for (let i = 0; i < RES.length; i++){
+      const xa = px(i ? RES_T[i-1] : RES_T[i] - 1), xb = px(RES_T[i]);
+      ctx.fillStyle = stCol[RES[i].status] || "transparent"; ctx.fillRect(xa, y, Math.max(1, xb - xa + .5), ph);
+    }
+    frame(ctx, X.x, y, X.w, ph, "");
+    yAxis(ctx, X.x, y, X.w, ph, lo, hi, 3);
+    ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, ph); ctx.clip();
+    for (const [k, col, lw, dots] of p.ser){
+      const py = v => y + ph - (v - lo)/(hi - lo) * ph;
+      if (dots){ ctx.fillStyle = col; ctx.globalAlpha = .55;
+        for (let i=0;i<RES.length;i++){ const v = RES[i][k]; if (Number.isFinite(v)) ctx.fillRect(px(RES_T[i])-1, py(v)-1, 2, 2); }
+        ctx.globalAlpha = 1; continue; }
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); let on = false;
+      for (let i=0;i<RES.length;i++){ const v = RES[i][k];
+        if (!Number.isFinite(v)) { on = false; continue; }
+        if (!on){ ctx.moveTo(px(RES_T[i]), py(v)); on = true; } else ctx.lineTo(px(RES_T[i]), py(v)); }
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.fillText(p.label, X.x + 6, y + 13);
+    y += ph + gapH;
+  }
+  // 時間軸 + 游標 + 目前視窗
+  ctx.fillStyle = css("--muted"); ctx.font = "10.5px system-ui"; ctx.textAlign = "center";
+  for (const v of niceTicks(x0, x1, 10)) ctx.fillText(v.toFixed(0) + " s", px(v), h - 6);
+  const win = +$("win").value;
+  ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(px(cur - win), top, px(cur) - px(cur - win), h - top - bottom); ctx.globalAlpha = 1;
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), h - bottom); ctx.stroke();
+  if (!RES.length){ ctx.fillStyle = css("--muted"); ctx.font = "13px system-ui"; ctx.textAlign = "center"; ctx.fillText("計算中…", w/2, h/2); }
+}
+
+// ---------------- 讀值
+const f = (v, d) => Number.isFinite(v) ? v.toFixed(d) : "--";
+function readout(){
+  if (!RES.length || !D) return;
+  let i = lowerBound(RES_T, cur + 1e-9) - 1;
+  const set = (id, s) => $(id).textContent = s;
+  if (i < 0){ set("roSpo2", "--"); $("roStatus").innerHTML = ""; return; }
+  const r = RES[i];
+  set("roSpo2", Number.isFinite(r.spo2Out) ? `${r.spo2Out.toFixed(1)} -> ${Math.round(r.spo2Out)}` : "--");
+  const col = {UPDATE: css("--ok"), HOLD: css("--hold"), NO_OUTPUT: css("--bad"), WARMUP: css("--warm")}[r.status];
+  $("roStatus").innerHTML = `<span class="badge" style="background:${col}">${r.status}</span>`;
+  set("roR", f(r.rOut, 3)); set("roR1", f(r.r, 4)); set("roRC", f(r.rCOut, 3));
+  set("roHr", f(r.hr, 0) + " bpm"); set("roHrP", f(r.hrPpg, 0) + " bpm");
+  set("roMethod", r.method || "--"); set("roEcg", r.ecgState || "--"); set("roReason", r.reason || "—");
+  set("roTc", r.t.toFixed(1) + " s（演算法時間）");
+}
+function stats(){
+  const cnt = {}; for (const r of RES) cnt[r.status] = (cnt[r.status]||0) + 1;
+  const up = RES.filter(r => r.status === "UPDATE");
+  const so = RES.map(r => r.spo2Out).filter(Number.isFinite).sort((a,b)=>a-b);
+  const md = a => a.length ? (a.length%2 ? a[a.length>>1] : (a[a.length/2-1]+a[a.length/2])/2) : NaN;
+  const ro = up.map(r => r.rOut).sort((a,b)=>a-b), rc = RES.map(r=>r.rCOut).filter(Number.isFinite).sort((a,b)=>a-b);
+  // 最長 HOLD
+  let longest = 0, run = 0; for (const r of RES){ if (r.status === "HOLD") { run++; longest = Math.max(longest, run); } else run = 0; }
+  const reasons = {}; for (const r of RES) if (r.status !== "UPDATE" && r.status !== "WARMUP" && r.reason) for (const s of r.reason.split("、")) reasons[s] = (reasons[s]||0)+1;
+  const top = Object.entries(reasons).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const n = RES.length - (cnt.WARMUP||0);
+  const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+  $("stats").innerHTML = `<div class="lbl" style="margin-bottom:4px">整段統計（不含 WARMUP）</div><table>` +
+    row("UPDATE", `${cnt.UPDATE||0}（${n ? (100*(cnt.UPDATE||0)/n).toFixed(0) : 0}%）`) +
+    row("HOLD", `${cnt.HOLD||0}（最長 ${longest} 秒）`) + row("NO_OUTPUT（--）", cnt.NO_OUTPUT||0) +
+    row("SpO2_out 中位數", f(md(so), 1)) + row("SpO2_out 範圍", so.length ? `${so[0].toFixed(1)} ~ ${so[so.length-1].toFixed(1)}` : "--") +
+    row("R_out 中位數", f(md(ro), 3)) + row("R_C_out 中位數", f(md(rc), 3)) +
+    top.map(([k,v]) => row("無效：" + k, v)).join("") + `</table>`;
+}
+$("export").onclick = () => {
+  const q = v => Number.isFinite(v) ? v : "";
+  const hdr = "display_time_s,t_center_s,status,HR_bpm,HR_td_bpm,HR_naive_bpm,R,SpO2_raw,SpO2_out,method,reason,ecg_state,HR_ppg_bpm,profile,R_out,R_C,R_C_out";
+  const lines = RES.map((r,i) => [RES_T[i].toFixed(4), r.t.toFixed(2), r.status, q(r.hr), q(r.hrTd), q(r.hrNaive), q(r.r), q(r.spo2Raw), q(r.spo2Out),
+    r.method, r.reason, r.ecgState, q(r.hrPpg), r.profile, q(r.rOut), q(r.rC), q(r.rCOut)].join(","));
+  const blob = new Blob(["﻿" + hdr + "\n" + lines.join("\n")], {type: "text/csv"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = fileName.replace(/\.csv$/i, "") + "_spo2_replay.csv"; a.click();
+};
+
+function draw(){
+  drawWave(); drawTrend(); readout();
+  if (D){ $("tnow").textContent = `${cur.toFixed(2)} / ${tMax().toFixed(2)} s`;
+    if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
+}
+draw();
+})();
+</script>
+</body>
+</html>
