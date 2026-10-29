@@ -85,6 +85,7 @@ button:disabled{opacity:.4;cursor:default}
 #drop strong{display:block;color:var(--ink);font-size:15px;font-weight:600;margin-bottom:4px}
 #drop.over,#drop:hover{border-color:var(--accent);background:var(--accent-soft)}
 body.loaded #drop{display:none}
+body:not(.loaded) .calbar{display:none}
 body:not(.loaded) .grid,body:not(.loaded) #imuCard{display:none}
 #info{font-size:12px;color:var(--muted);white-space:pre-line;margin-top:8px;line-height:1.55}
 #info:empty{display:none}
@@ -107,7 +108,7 @@ canvas{display:block;width:100%;touch-action:pan-y}
 .side{position:sticky;top:120px;display:grid;gap:14px}
 .readout .lbl{color:var(--muted);font-size:12px}
 .spo2{display:flex;align-items:baseline;gap:8px;margin:2px 0 4px}
-.readout .big{font:700 40px/1.05 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em;font-variant-ligatures:none}
+.readout .big{font:700 48px/1.05 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em;font-variant-ligatures:none}
 .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:650;color:#fff;letter-spacing:.03em}
 .kv{display:grid;grid-template-columns:auto minmax(0,1fr);font-size:13px;margin-top:12px;border-top:1px solid var(--line)}
 .kv div{padding:6px 0;border-bottom:1px solid var(--line)}
@@ -167,6 +168,14 @@ details.note p{margin:6px 0 0;line-height:1.6}
       <button id="rerun" disabled>重新計算</button>
     </div>
     <div id="info"></div>
+    <div class="calbar" style="margin:12px 0 0">
+      <span class="calicon" style="font-size:12.5px;color:var(--ink);font-weight:600">IMU 校正</span>
+      <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
+      <button id="calBtn" type="button" disabled title="先載入主 CSV">上傳校正 CSV</button>
+      <label>從 <input id="calStart" class="num" type="number" step="0.5" min="0" style="width:86px" disabled> 秒起改用</label>
+      <button id="calClear" class="ghost" type="button" disabled>移除</button>
+      <div id="calInfo">尚未上傳校正 CSV：整段使用主 CSV 的 IMU 資料。</div>
+    </div>
     <div id="prog"><div></div></div>
   </div>
 
@@ -188,7 +197,7 @@ details.note p{margin:6px 0 0;line-height:1.6}
     </div>
     <div class="side">
       <div class="card readout">
-        <div class="lbl">SpO2（App 顯示格式）</div>
+        <div class="lbl">SpO2（%）</div>
         <div class="spo2"><div class="big" id="roSpo2">--</div></div>
         <div id="roStatus"></div>
         <div class="kv">
@@ -209,13 +218,6 @@ details.note p{margin:6px 0 0;line-height:1.6}
 
   <div class="card" id="imuCard">
     <div class="cardhead"><h2>IMU 3D 姿態<small>Madgwick，與 imu_cal.py / App fuseImu 相同</small></h2></div>
-    <div class="calbar">
-      <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
-      <button id="calBtn" type="button" disabled title="先載入主 CSV">上傳校正 CSV</button>
-      <label>從 <input id="calStart" class="num" type="number" step="0.5" min="0" style="width:86px" disabled> 秒起改用</label>
-      <button id="calClear" class="ghost" type="button" disabled>移除</button>
-      <div id="calInfo">尚未上傳校正 CSV：整段使用主 CSV 的 IMU 資料。</div>
-    </div>
     <div class="imugrid">
       <canvas id="gl" height="420"></canvas>
       <div class="readout">
@@ -230,7 +232,7 @@ details.note p{margin:6px 0 0;line-height:1.6}
           <div>GYRO (°/s)</div><div id="imGyro">--</div>
         </div>
         <details class="note"><summary>說明</summary>
-          <p>校正 CSV 是從校正那一刻才開始錄。上傳後會自動在主 CSV 裡找對應時間點（先逐筆比對 PPG 原始值；沒有 PPG 就比對 |ACC|、|GYRO| 波形），從那之後的姿態改用校正 CSV（含其 GyroBias）。對不準就直接改秒數。</p>
+          <p>校正 CSV 是從校正那一刻才開始錄。在最上方「IMU 校正」上傳後，會自動在主 CSV 裡找對應時間點（先逐筆比對 PPG 原始值；沒有 PPG 就比對 |ACC|、|GYRO| 波形），從那之後的姿態改用校正 CSV（含其 GyroBias）。對不準就直接改秒數。</p>
           <p>模型方向與 Python 腳本相同：IMU 四元數軸重映射 (q0, q2, −q1, q3)、轉 180° 背對鏡頭、畫面 −90° 旋轉。Roll/Pitch/Yaw 由原始四元數換算（ZYX）。</p>
         </details>
       </div>
@@ -979,7 +981,7 @@ worker.onmessage = e => {
     $("resetGap").disabled = D.fmt !== "new";
     ["play","seek","rerun","calBtn"].forEach(id => $(id).disabled = false);
     $("calBtn").title = "";
-    RES = []; CAL = null; calStart = null;
+    RES = []; resVersion++; CAL = null; calStart = null;
     if (calText) sendCalib(); else calUi();
     draw();
   }
@@ -995,7 +997,7 @@ worker.onmessage = e => {
   }
   else if (m.type === "calibError"){ CAL = null; calStart = null; calUi("校正 CSV 錯誤：" + m.msg); draw(); }
   else if (m.type === "results"){
-    hideProg(); RES = m.res;
+    hideProg(); RES = m.res; resVersion++;
     RES_T = Float64Array.from(RES, r => D.t[Math.max(0, r.endIdx)]);
     $("export").disabled = false;
     stats(); draw();
@@ -1070,7 +1072,7 @@ trend.addEventListener("pointerup", () => tDrag = false);
 
 // ---------------- 繪圖工具
 function prep(cv){
-  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +(cv.dataset.h || (cv.dataset.h = cv.getAttribute("height")));
   cv.style.height = h + "px";
   if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)) { cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
   const ctx = cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
@@ -1176,9 +1178,26 @@ function drawWave(){
 }
 
 // ---------------- 趨勢
+// 趨勢圖：靜態部分（曲線、狀態底色、刻度、校正標記）只在資料/尺寸/主題改變時重畫，存在離屏畫布；每幀只疊上游標
+let trendCache = null, trendKey = "", resVersion = 0;
 function drawTrend(){
   const {ctx, w, h} = prep(trend);
   if (!D) return;
+  const dpr = window.devicePixelRatio || 1;
+  const key = [w, h, dpr, resVersion, calStart, CAL ? CAL.n : 0, css("--bg")].join("|");
+  if (key !== trendKey || !trendCache){
+    trendCache = trendCache || document.createElement("canvas");
+    trendCache.width = Math.round(w*dpr); trendCache.height = Math.round(h*dpr);
+    const c2 = trendCache.getContext("2d"); c2.setTransform(dpr,0,0,dpr,0,0); c2.clearRect(0,0,w,h);
+    drawTrendStatic(c2, w, h); trendKey = key;
+  }
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(trendCache, 0, 0); ctx.restore();
+  const L = 56, R = 14, X = {x: L, w: w - L - R}, x0 = tMin(), span = tMax() - x0 || 1, top = 4, bottom = 22;
+  const px = t => X.x + (t - x0) / span * X.w;
+  ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(px(cur - winSec), top, px(cur) - px(cur - winSec), h - top - bottom); ctx.globalAlpha = 1;
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), h - bottom); ctx.stroke();
+}
+function drawTrendStatic(ctx, w, h){
   const L = 56, R = 14, X = {x: L, w: w - L - R}, x0 = tMin(), x1 = tMax(), span = x1 - x0 || 1;
   const px = t => X.x + (t - x0) / span * X.w;
   const panels = [
@@ -1224,9 +1243,6 @@ function drawTrend(){
   ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
   { const tk = niceTicks(x0, x1, 10), st = tk.length > 1 ? tk[1] - tk[0] : 1, dec = st >= 1 ? 0 : st >= 0.1 ? 1 : 2;
     for (const v of tk) ctx.fillText(v.toFixed(dec) + " s", px(v), h - 6); }
-  const win = winSec;
-  ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(px(cur - win), top, px(cur) - px(cur - win), h - top - bottom); ctx.globalAlpha = 1;
-  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), h - bottom); ctx.stroke();
   if (CAL && calStart != null){
     const xc = px(calStart), xe = px(Math.min(tMax(), calStart + CAL.t[CAL.n-1]));
     ctx.fillStyle = css("--az"); ctx.globalAlpha = .9; ctx.fillRect(xc, h - bottom + 1, Math.max(2, xe - xc), 3); ctx.globalAlpha = 1;
@@ -1244,7 +1260,7 @@ function readout(){
   const set = (id, s) => $(id).textContent = s;
   if (i < 0){ set("roSpo2", "--"); $("roStatus").innerHTML = ""; return; }
   const r = RES[i];
-  set("roSpo2", Number.isFinite(r.spo2Out) ? `${r.spo2Out.toFixed(1)} -> ${Math.round(r.spo2Out)}` : "--");
+  set("roSpo2", Number.isFinite(r.spo2Out) ? `${Math.round(r.spo2Out)}` : "--");
   const col = {UPDATE: css("--ok"), HOLD: css("--hold"), NO_OUTPUT: css("--bad"), WARMUP: css("--warm")}[r.status];
   $("roStatus").innerHTML = `<span class="badge" style="background:${col}">${r.status}</span>`;
   set("roR", f(r.rOut, 3)); set("roR1", f(r.r, 4)); set("roRC", f(r.rCOut, 3));
@@ -1353,7 +1369,7 @@ void main(){ vec3 lightDir = normalize(vec3(0.3, 1.0, 0.8)); float diff = max(do
     gl.bindVertexArray(null); count = m.I.length; radius = m.radius;
   }
   function render(valid, q){
-    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +(cv.dataset.h || (cv.dataset.h = cv.getAttribute("height")));
     cv.style.height = h + "px";
     if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)){ cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
     gl.viewport(0, 0, cv.width, cv.height);
@@ -1411,7 +1427,10 @@ function drawImu(){
   $("imGyro").textContent = src.gyro.map(a => Number.isFinite(a[i]) ? a[i].toFixed(2) : "--").join(", ");
 }
 
-function draw(){
+// 同一幀內多次要求重畫（拖曳滑桿、滾輪、播放）只畫一次
+let drawPending = false;
+function draw(){ if (drawPending) return; drawPending = true; requestAnimationFrame(() => { drawPending = false; drawNow(); }); }
+function drawNow(){
   drawWave(); drawTrend(); readout(); drawImu();
   if (D){ $("tnow").innerHTML = `${cur.toFixed(2)} <span>/ ${tMax().toFixed(2)} s</span>`;
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
