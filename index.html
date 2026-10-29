@@ -201,6 +201,19 @@ details.more .kv{margin-top:8px}
 .segctl button{height:26px;border:0;background:transparent;border-radius:7px;padding:0 11px;font-size:12.5px;color:var(--muted)}
 .segctl button:hover:not(.on){color:var(--ink);border:0}
 .segctl button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.dropbtns{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.librows{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.librow{display:grid;grid-template-columns:150px minmax(0,1.2fr) minmax(0,1.4fr);gap:12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px}
+.librow:last-child{border-bottom:0}
+.librow:hover{background:var(--panel2)}
+.librow.cur{background:var(--accent-soft)}
+.librow .lt{font-variant-numeric:tabular-nums;color:var(--muted)}
+.librow .ln{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.librow .lc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.librow .lc.ok{color:var(--ok)}
+.librow .lc.guess{color:var(--hold)}
+.libnote{padding:8px 12px;font-size:12px;color:var(--hold)}
+@media (max-width:760px){.librow{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -221,13 +234,21 @@ details.more .kv{margin-top:8px}
   </div>
 </div>
 <main>
-  <div id="drop"><strong>把 App 錄製的 CSV 拖到這裡</strong>或點這裡選檔案 · 之後可以再加入校正 CSV<input id="file" type="file" accept=".csv,text/csv" class="hide"></div>
+  <div id="drop"><strong>把 CSV 或整個資料夾拖到這裡</strong>主要 CSV 和校正 CSV 可以一起放，會依檔名時間自動配對
+    <div class="dropbtns"><button type="button" class="primary" id="pickDir">開啟資料夾…</button><button type="button" id="pickFiles">選擇 CSV（可多選）</button></div>
+    <input id="file" type="file" accept=".csv,text/csv" multiple class="hide"><input id="dirIn" type="file" webkitdirectory multiple class="hide"></div>
+  <div class="card hide" id="libCard">
+    <div class="cardhead"><h2>檔案清單<small id="libSum"></small></h2>
+      <div class="row" style="gap:6px"><button type="button" id="libPrev">‹ 上一筆</button><button type="button" id="libNext">下一筆 ›</button>
+        <button type="button" id="libAddDir">加入資料夾…</button><button type="button" id="libAddFiles">加入檔案…</button></div></div>
+    <div class="librows" id="libRows"></div>
+  </div>
 
   <div class="setup">
     <div class="step">
       <div class="stepn">1</div>
       <div class="stepbody"><div class="steplbl">原始資料</div><div class="stepval" id="fileName">--</div><div class="stepsub" id="info"></div></div>
-      <button class="ghost" id="openBtn" type="button">換檔案</button>
+      <button class="ghost" id="openBtn" type="button">加入檔案</button>
     </div>
     <div class="step" id="calStep">
       <div class="stepn">2</div>
@@ -1054,16 +1075,116 @@ const txt = (id, s) => { const el = $(id); if (el.textContent !== s) el.textCont
 // 平滑動畫狀態：縱軸範圍、縮放
 let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false;
 
-// ---------------- 檔案
-const drop = $("drop"), fileIn = $("file");
+// ---------------- 檔案（可一次加入很多 CSV／整個資料夾；主檔與校正檔依檔名時間自動配對）
+const drop = $("drop"), fileIn = $("file"), dirIn = $("dirIn");
+const LIB = {mains: [], cals: []};
+let curEntry = null;
+// 檔名時間：主檔 data_2026-10-29_15-03-55_*.csv；校正檔 data_calibrated_20261029_150425.csv
+function nameTime(name){
+  let m = name.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/) || name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  return m ? new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]).getTime() : null;
+}
+const isCalName = n => /calibrat/i.test(n);
+// 校正檔第一列的 Time（= 主檔時間軸上的秒數）：只讀檔案開頭，不讀整個檔
+async function firstTime(f){
+  try {
+    const head = (await f.slice(0, 8192).text()).replace(/^\uFEFF/, "").split(/\r?\n/);
+    const ti = head[0].split(",").map(x => x.trim()).indexOf("Time");
+    for (let k = 1; k < head.length - 1; k++){ const v = parseFloat((head[k].split(",")[ti] || "")); if (ti >= 0 && Number.isFinite(v)) return v; }
+  } catch (e) {}
+  return NaN;
+}
+async function addFiles(files){
+  let added = 0;
+  for (const f of files){
+    if (!/\.csv$/i.test(f.name)) continue;
+    const cal = isCalName(f.name), list = cal ? LIB.cals : LIB.mains;
+    if (list.some(x => x.file.name === f.name && x.file.size === f.size)) continue;
+    list.push({file: f, name: f.name, t: nameTime(f.name), cals: [], T0: cal ? await firstTime(f) : NaN}); added++;
+  }
+  if (!added) return;
+  pairLib(); renderLib();
+  if (!D && LIB.mains.length) loadEntry(LIB.mains[0]);
+  else if (!LIB.mains.length && LIB.cals.length && !D) $("drop").querySelector("strong").textContent = "只有校正 CSV，請再加入主要 CSV";
+}
+// 配對規則：
+//  1) 校正檔的 Time 欄是主檔的時間軸（例如從 28.71 s 開始）→「校正檔名時間 − 第一列 Time」= 主檔開始時間，
+//     找開始時間在 ±15 秒內的主檔（就算兩台手機同時錄也不會配錯）
+//  2) 沒有 Time 可用時，退而求其次：開始時間早於校正檔、且最接近的主檔（6 小時內），標為「僅依檔名推測」
+//  載入時還會再用 Time＋PPG 原始值逐筆確認，對不上會警告
+function pairLib(){
+  LIB.mains.sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || a.name.localeCompare(b.name));
+  for (const m of LIB.mains) m.cals = [];
+  LIB.unpaired = [];
+  for (const c of LIB.cals){
+    let best = null; c.how = "";
+    if (c.t != null && Number.isFinite(c.T0) && c.T0 >= 0){
+      const target = c.t - c.T0 * 1000;
+      for (const m of LIB.mains) if (m.t != null && Math.abs(m.t - target) <= 15000 && (!best || Math.abs(m.t - target) < Math.abs(best.t - target))) best = m;
+      if (best) c.how = "time";
+    }
+    if (!best && c.t != null && !(Number.isFinite(c.T0) && c.T0 >= 1)){
+      for (const m of LIB.mains) if (m.t != null && m.t <= c.t + 5000 && c.t - m.t <= 6*3600e3 && (!best || m.t > best.t)) best = m;
+      if (best) c.how = "name";
+    }
+    if (best) best.cals.push(c); else LIB.unpaired.push(c);
+  }
+  for (const m of LIB.mains) m.cals.sort((a, b) => a.t - b.t);
+}
+const fmtT = t => { if (t == null) return "（檔名無時間）"; const d = new Date(t), p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function renderLib(){
+  const show = LIB.mains.length + LIB.cals.length > 1;
+  $("libCard").classList.toggle("hide", !show);
+  const nCal = LIB.mains.filter(m => m.cals.length).length;
+  $("libSum").textContent = `${LIB.mains.length} 筆錄製 · ${nCal} 筆有校正`;
+  $("libRows").innerHTML = LIB.mains.map((m, i) => {
+    const c = m.cals[0], dt = c && m.t != null ? Math.round((c.t - m.t) / 1000) : null;
+    const cal = c ? `<span class="lc${c.how === "time" ? " ok" : " guess"}" title="${esc(c.name)}">${c.how === "time" ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${c.how === "time" ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}</span>`
+                  : `<span class="lc">無校正</span>`;
+    return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>${cal}</div>`;
+  }).join("") + (LIB.unpaired.length ? `<div class="libnote">找不到對應主檔的校正 CSV（它的開始時間對不上任何一筆主檔）：${LIB.unpaired.map(c => esc(c.name)).join("、")}</div>` : "");
+  const i = LIB.mains.indexOf(curEntry);
+  $("libPrev").disabled = i <= 0; $("libNext").disabled = i < 0 || i >= LIB.mains.length - 1;
+}
+async function loadEntry(m){
+  curEntry = m; renderLib();
+  // 配對到的校正檔先讀好；主檔載入完成後會自動送去對齊（沒有校正就清掉上一筆的）
+  if (m.cals.length){ calName = m.cals[0].name; calText = await m.cals[0].file.text(); }
+  else { calName = ""; calText = null; }
+  loadFile(m.file);
+}
+$("libRows").addEventListener("click", e => { const r = e.target.closest(".librow"); if (r) loadEntry(LIB.mains[+r.dataset.i]); });
+$("libPrev").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i > 0) loadEntry(LIB.mains[i-1]); };
+$("libNext").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i >= 0 && i < LIB.mains.length - 1) loadEntry(LIB.mains[i+1]); };
+// 拖進來的資料夾要逐層讀出檔案
+async function filesFromDrop(dt){
+  const entries = [...(dt.items || [])].map(it => it.webkitGetAsEntry ? it.webkitGetAsEntry() : null).filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const out = [];
+  const walk = async en => {
+    if (en.isFile) out.push(await new Promise((res, rej) => en.file(res, rej)));
+    else if (en.isDirectory){ const rd = en.createReader(); let batch;
+      do { batch = await new Promise((res, rej) => rd.readEntries(res, rej)); for (const e of batch) await walk(e); } while (batch.length); }
+  };
+  for (const en of entries) await walk(en);
+  return out;
+}
 drop.onclick = () => fileIn.click();
-fileIn.onchange = () => { fileIn.files[0] && loadFile(fileIn.files[0]); fileIn.value = ""; };
+$("pickFiles").onclick = e => { e.stopPropagation(); fileIn.click(); };
+$("pickDir").onclick = e => { e.stopPropagation(); dirIn.click(); };
+$("libAddDir").onclick = () => dirIn.click();
+$("libAddFiles").onclick = () => fileIn.click();
 $("openBtn").onclick = () => fileIn.click();
+fileIn.onchange = () => { addFiles([...fileIn.files]); fileIn.value = ""; };
+dirIn.onchange = () => { addFiles([...dirIn.files]); dirIn.value = ""; };
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
-["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", e => e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove("over")));
 document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop", e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+document.addEventListener("drop", e => { e.preventDefault(); filesFromDrop(e.dataTransfer).then(addFiles); });
+// 已載入資料時，重新整理或關閉分頁前先確認（瀏覽器會用它自己的提示文字）
+window.addEventListener("beforeunload", e => { if (D){ e.preventDefault(); e.returnValue = ""; } });
 
 const opts = () => ({profile:$("profile").value, settle:+$("settle").value||0, useEcg:$("useEcg").checked, resetGap:$("resetGap").checked});
 function loadFile(f){
