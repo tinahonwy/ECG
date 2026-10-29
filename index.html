@@ -185,6 +185,8 @@ details.more .kv{margin-top:8px}
 .flbl{color:var(--muted);font-size:12px}
 .flbl select{flex:1}
 .ftext{margin-top:8px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.hint{display:flex!important;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.gapchk{margin-left:auto;font-size:11.5px}
 </style>
 </head>
 <body>
@@ -228,7 +230,7 @@ details.more .kv{margin-top:8px}
         <label>穩定期 <input id="settle" type="number" min="0" max="120" value="20"> 秒</label>
         <label class="chk"><input id="useEcg" type="checkbox" checked> 使用 ECG</label>
         <label class="chk" title="只對新版 CSV 有效"><input id="resetGap" type="checkbox"> 掉包時 reset()</label>
-        <label>波形 <select id="filt"><option value="raw">原始</option><option value="bp" selected>同 App 畫面</option></select></label>
+        <label>波形 <select id="filt"><option value="bp" selected>同 App 畫面</option><option value="raw">原始</option></select></label>
         <button id="rerun" disabled>重新計算</button>
       </div>
     </details>
@@ -238,7 +240,8 @@ details.more .kv{margin-top:8px}
   <div class="grid">
     <div class="card">
       <canvas id="wave" height="440"></canvas>
-      <div class="hint">拖曳平移 · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>＋滾輪縮放 · <kbd>空白鍵</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 前後 1 秒 · <span style="color:var(--gap)">紅色虛線 = 掉包</span></div>
+      <div class="hint"><span>拖曳平移 · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>＋滾輪縮放 · <kbd>空白鍵</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 前後 1 秒</span>
+        <label class="chk gapchk"><input id="showGaps" type="checkbox"> 顯示掉包位置</label></div>
     </div>
     <div class="side">
       <div class="card readout">
@@ -810,15 +813,35 @@ function sosfilt(sos, x){ // 單向（與 App 即時濾波相同），扣掉第�
     y[i]=v; }
   return y;
 }
-// 同 App 畫面（DataLogViewModel.insertECG）：ADC → mV（VREF 1000 mV、GAIN 20、17 bit），0.05 Hz 一階高通，偏離 > 5 mV 時歸零
+// ===== 同 App 畫面：逐行移植 App 的 UI 濾波（Kotlin Float → 用 Math.fround 模擬 32 位元運算，結果逐筆相同）
+const F32 = Math.fround;
+// ECG：DataLogViewModel.insertECG(FloatArray) → adcToVoltage() → highPass005() → smoothEcg(SMOOTH_WIN = 1，等於不變)
+//   輸入是 CSV 的 ECG 欄（= MainActivity 的 ecgProcessed = -ecgRaw，也就是 App 送進 insertECG 的值）
 function ecgAppDisplay(x){
-  const y = new Float32Array(x.length), A = 0.99877, K = 1000 / (131072 * 20);
+  const y = new Float32Array(x.length), A = F32(0.99877), K1000 = F32(1000), DEN = F32(F32(131072) * F32(20)), LIM = F32(5);
   let hx = 0, hy = 0;
   for (let i=0;i<x.length;i++){
-    const v = Number.isFinite(x[i]) ? x[i] * K : hx;
-    hy = A * (hy + v - hx); hx = v;
-    if (Math.abs(hy) > 5) hy = 0;
+    if (!Number.isFinite(x[i])){ y[i] = hy; continue; }
+    const v = F32(F32(F32(x[i]) * K1000) / DEN);            // adcCount * 1000f / (131072f * 20f)
+    hy = F32(A * F32(F32(hy + v) - hx)); hx = v;             // hpY = HP_ALPHA * (hpY + x - hpX)
+    if (Math.abs(hy) > LIM) hy = 0;                          // 偏離太大時快速回復基線
     y[i] = hy;
+  }
+  return y;
+}
+// PPG：MainActivity 的 ppgIrLpForUI / ppgRedLpForUI（App 畫面畫的就是這個，PPG_OFFSET = 0）
+//   基線 MA（BASELINE_ALPHA 0.002）→ 一階高通（HPF_ALPHA 0.975）→ UI 低通（UI_LPF_ALPHA 0.05）
+function ppgAppDisplay(x){
+  const y = new Float32Array(x.length), BA = F32(0.002), HA = F32(0.975), LA = F32(0.05);
+  let base = 0, hp = 0, prev = 0, ui = 0;
+  for (let i=0;i<x.length;i++){
+    if (!Number.isFinite(x[i])){ y[i] = ui; continue; }
+    const raw = F32(x[i]);
+    base = F32(base + F32(BA * F32(raw - base)));            // ppgIrBaselineMA += BASELINE_ALPHA * (raw - MA)
+    const xb = F32(raw - base);                              // ppgIrProcessForBaseline
+    hp = F32(HA * F32(F32(hp + xb) - prev)); prev = xb;       // ppgIrHpZ = HPF_ALPHA * (HpZ + x - prev)
+    ui = F32(ui + F32(LA * F32(hp - ui)));                    // ppgIrLpForUI += UI_LPF_ALPHA * (afterHp - LpForUI)
+    y[i] = ui;
   }
   return y;
 }
@@ -863,7 +886,7 @@ function parse(text){
     imu = {Q: f.Q, valid: f.valid, bias: knownBias, biasRow, calibDoneTime: f.calibDoneTime, finalBias: f.bias};
   }
   return {n, fmt, t, cols, gaps, back, meta, hasEcg, imu,
-    irBp: sosfilt(SOS_PPG, cols.PPG_IR), redBp: sosfilt(SOS_PPG, cols.PPG_RED), ecgBp: hasEcg ? ecgAppDisplay(cols.ECG) : null};
+    irBp: ppgAppDisplay(cols.PPG_IR), redBp: ppgAppDisplay(cols.PPG_RED), ecgBp: hasEcg ? ecgAppDisplay(cols.ECG) : null};
 }
 // ---------------- 校正 CSV（從校正那一刻開始錄）→ 在主 CSV 中找起點
 function lowerBound(a, x){ let lo = 0, hi = a.length; while (lo < hi){ const m = (lo+hi)>>1; if (a[m] < x) lo = m+1; else hi = m; } return lo; }
@@ -1125,6 +1148,7 @@ function tick(ts){
 }
 $("seek").oninput = e => setCur(tMin() + (e.target.value/1000) * (tMax()-tMin()));
 $("win").addEventListener("change", e => { if (e.target.value !== "custom") setWin(+e.target.value); });
+$("showGaps").addEventListener("change", draw);
 $("filt").addEventListener("change", () => { ySnap = true; draw(); });
 document.addEventListener("keydown", e => {
   if (!D || /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "range") return;
@@ -1236,9 +1260,9 @@ function drawWave(){
   const L = 56, R = 14, X = {x: L, w: w - L - R};
   const bp = $("filt").value === "bp", c = D.cols;
   const panels = [
-    {label: bp ? "ECG（mV · 0.05 Hz 高通，同 App 畫面）" : "ECG（CSV 原始 ADC 值）", ser: [[bp && D.ecgBp ? D.ecgBp : c.ECG, css("--ecg")]], r: 1, ecg: true},
-    {label: bp ? "PPG IR（0.8–8 Hz 帶通，向下 = 收縮期）" : "PPG IR（原始）", ser: [[bp ? D.irBp : c.PPG_IR, css("--ir")]], r: 1},
-    {label: bp ? "PPG RED（0.8–8 Hz 帶通）" : "PPG RED（原始）", ser: [[bp ? D.redBp : c.PPG_RED, css("--red")]], r: 1},
+    {label: bp ? "ECG（mV，同 App 畫面）" : "ECG（原始）", ser: [[bp && D.ecgBp ? D.ecgBp : c.ECG, css("--ecg")]], r: 1, ecg: true},
+    {label: bp ? "PPG IR（同 App 畫面）" : "PPG IR（原始）", ser: [[bp ? D.irBp : c.PPG_IR, css("--ir")]], r: 1},
+    {label: bp ? "PPG RED（同 App 畫面）" : "PPG RED（原始）", ser: [[bp ? D.redBp : c.PPG_RED, css("--red")]], r: 1},
     {label: "ACC X / Y / Z", ser: [[c.ACC_X, css("--ax")], [c.ACC_Y, css("--ay")], [c.ACC_Z, css("--az")]], r: 1},
   ];
   const gapH = 10, top = 4, bottom = 22, totalR = panels.reduce((s,p)=>s+p.r,0);
@@ -1267,7 +1291,7 @@ function drawWave(){
     for (const [arr, col] of p.ser) drawSeries(ctx, D.t, arr, i0, i1, x0, x1, X, y, H, lo, hi, col);
     // 掉包
     ctx.strokeStyle = css("--gap"); ctx.setLineDash([3,3]);
-    for (const g of D.gaps){ const gx = X.x + (g.t + 0.5/FS - x0) / win * X.w; if (gx >= X.x && gx <= X.x + X.w){ ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y+H); ctx.stroke(); } }
+    if ($("showGaps").checked) for (const g of D.gaps){ const gx = X.x + (g.t + 0.5/FS - x0) / win * X.w; if (gx >= X.x && gx <= X.x + X.w){ ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y+H); ctx.stroke(); } }
     ctx.setLineDash([]);
     ctx.restore();
     tagLabel(ctx, p.label, X.x + 8, y + 14);
@@ -1277,7 +1301,7 @@ function drawWave(){
   ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
   for (const v of niceTicks(x0, x1, 8)){ const xx = X.x + (v - x0)/win*X.w; if (xx < X.x || xx > X.x+X.w) continue; ctx.fillText(v.toFixed(win <= 10 ? 1 : 0) + " s", xx, h - 6); }
   // 掉包說明（目前畫面）
-  const vis = D.gaps.filter(g => g.t >= x0 && g.t <= x1);
+  const vis = $("showGaps").checked ? D.gaps.filter(g => g.t >= x0 && g.t <= x1) : [];
   if (vis.length){ ctx.textAlign = "right"; ctx.fillStyle = css("--gap"); ctx.fillText("畫面內掉包：" + vis.map(g => g.missing + " 樣本").join("、"), X.x + X.w, h - 6); }
 }
 
