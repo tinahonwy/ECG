@@ -1021,8 +1021,7 @@ const css = n => { let v = _css.get(n); if (v === undefined){ v = getComputedSty
 // 文字沒變就不寫 DOM（避免每幀重排版）
 const txt = (id, s) => { const el = $(id); if (el.textContent !== s) el.textContent = s; };
 // 平滑動畫狀態：縱軸範圍、縮放
-let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false, ySnap = true, lastDrawCur = 0;
-const yEase = [];
+let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false;
 
 // ---------------- 檔案
 const drop = $("drop"), fileIn = $("file");
@@ -1099,7 +1098,7 @@ worker.onmessage = e => {
     $("resetGap").disabled = D.fmt !== "new";
     ["play","seek","rerun","calBtn"].forEach(id => $(id).disabled = false);
     $("calBtn").title = "";
-    RES = []; CAL = null; calStart = null; ySnap = true;
+    RES = []; CAL = null; calStart = null;
     if (calText) sendCalib(); else calUi();
     draw();
   }
@@ -1149,7 +1148,7 @@ function tick(ts){
 $("seek").oninput = e => setCur(tMin() + (e.target.value/1000) * (tMax()-tMin()));
 $("win").addEventListener("change", e => { if (e.target.value !== "custom") setWin(+e.target.value); });
 $("showGaps").addEventListener("change", draw);
-$("filt").addEventListener("change", () => { ySnap = true; draw(); });
+$("filt").addEventListener("change", draw);
 document.addEventListener("keydown", e => {
   if (!D || /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "range") return;
   if (e.code === "Space"){ e.preventDefault(); $("play").click(); }
@@ -1276,15 +1275,9 @@ function drawWave(){
       for (const [a] of p.ser) for (let i=i0;i<i1;i+=st) if (Number.isFinite(a[i])) v.push(a[i]);
       v.sort((a,b)=>a-b);
       if (v.length > 20){ const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)], pad = (q9-q1)*.15 || Math.max(1, Math.abs(q9)*.01); lo = q1-pad; hi = q9+pad; } }
-    { const pi = panels.indexOf(p); let e = yEase[pi];
-      if (ySnap || !e || !Number.isFinite(e[0]) || !Number.isFinite(e[1])) e = yEase[pi] = [lo, hi];
-      else {
-        const kUp = 1 - Math.exp(-frameDt / 60), kDn = 1 - Math.exp(-frameDt / 350);
-        e[0] += (lo - e[0]) * (lo < e[0] ? kUp : kDn);
-        e[1] += (hi - e[1]) * (hi > e[1] ? kUp : kDn);
-        if (Math.abs(e[0] - lo) + Math.abs(e[1] - hi) > 0.003 * (hi - lo)) animating = true; else { e[0] = lo; e[1] = hi; }
-      }
-      lo = e[0]; hi = e[1]; }
+    // 有點落在顯示範圍外（被百分位刻度略過的極端值）→ 一定要標出來，避免看圖的人以為沒有異常
+    let outN = 0;
+    for (const [a] of p.ser) for (let i=i0;i<i1;i++){ const v = a[i]; if (v < lo || v > hi) outN++; }
     frame(ctx, X.x, y, X.w, H, "");
     yAxis(ctx, X.x, y, X.w, H, lo, hi, 3);
     ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, H); ctx.clip();
@@ -1295,6 +1288,11 @@ function drawWave(){
     ctx.setLineDash([]);
     ctx.restore();
     tagLabel(ctx, p.label, X.x + 8, y + 14);
+    if (outN){
+      const t = `↕ ${outN} 點超出顯示範圍`; ctx.font = "600 11px " + FONT; const tw = ctx.measureText(t).width;
+      ctx.fillStyle = css("--panel"); ctx.globalAlpha = .9; ctx.fillRect(X.x + X.w - tw - 12, y + 3, tw + 8, 16); ctx.globalAlpha = 1;
+      ctx.fillStyle = css("--hold"); ctx.textAlign = "right"; ctx.fillText(t, X.x + X.w - 8, y + 15);
+    }
     y += H + gapH;
   }
   // 時間軸
@@ -1469,9 +1467,7 @@ function drawNow(){
   const now = performance.now(); frameDt = lastFrameT ? Math.min(100, now - lastFrameT) : 16; lastFrameT = now; animating = false;
   const r = winTarget / winSec;
   if (Math.abs(Math.log(r)) > 0.002){ winSec *= Math.pow(r, 1 - Math.exp(-frameDt / 70)); animating = true; } else winSec = winTarget;
-  if (Math.abs(cur - lastDrawCur) > winSec) ySnap = true;      // 跳到很遠的地方：刻度直接到位
-  lastDrawCur = cur;
-  drawWave(); ySnap = false; readout(); drawImu();
+  drawWave(); readout(); drawImu();
   if (animating) draw(); else lastFrameT = 0;
   if (D){ const tn = `${cur.toFixed(2)} <span>/ ${tMax().toFixed(2)} s</span>`; if ($("tnow").innerHTML !== tn) $("tnow").innerHTML = tn;
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
