@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>胸口 SpO2 波形回放</title>
+<title>VitalSign檔案回放</title>
 <style>
 :root{
   --bg:#f3f4f6; --panel:#ffffff; --panel2:#f8f9fb; --ink:#14181f; --muted:#667085; --faint:#98a2b3; --line:#e4e7ec; --grid:#eef0f3;
@@ -222,6 +222,18 @@ details.more .kv{margin-top:8px}
 .dropalt a{color:var(--accent)}
 #drop{cursor:default}
 .libdirs{font-size:12px;color:var(--muted);margin:-4px 2px 8px}
+.strow{display:flex;align-items:center;gap:8px;margin-top:10px;min-height:24px;min-width:0}
+.strow #roStatus{margin-top:0;flex:none}
+.strow .reason{margin-top:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strow .reason:empty{display:block}
+.ecggrid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr) 230px;gap:16px;align-items:start}
+@media (max-width:1100px){.ecggrid{grid-template-columns:1fr}}
+.hrvtbl table{border-collapse:collapse;width:100%;font-size:12.5px}
+.hrvtbl th{font-weight:600;color:var(--muted);text-align:right;padding:4px 6px;border-bottom:1px solid var(--line);font-size:11.5px}
+.hrvtbl th:first-child,.hrvtbl td:first-child{text-align:left}
+.hrvtbl td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.hrvtbl td:first-child{color:var(--muted)}
+#tacho{cursor:crosshair}
 </style>
 </head>
 <body>
@@ -229,7 +241,7 @@ details.more .kv{margin-top:8px}
   <div class="topin">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></div>
-      <h1>胸口 SpO2 波形回放</h1><span class="tag">檔案只在瀏覽器內處理，不會上傳</span>
+      <h1>VitalSign檔案回放</h1><span class="tag">檔案只在瀏覽器內處理，不會上傳</span>
     </div>
     <button id="export" disabled>匯出每秒結果 CSV</button>
   </div>
@@ -286,7 +298,8 @@ details.more .kv{margin-top:8px}
 
   <div class="grid">
     <div class="card">
-      <div class="cardhead"><h2>波形</h2>
+      <div class="cardhead"><div class="row" style="gap:14px"><h2>波形</h2>
+          <label class="chk" title="在 ECG 上標出 R 波、RR 間期與不規則心跳，並顯示 HRV 分析。關閉時只看原始波形"><input id="ecgA" type="checkbox"> ECG 分析</label></div>
         <div class="segctl" id="viewSel" role="tablist" aria-label="顯示哪些波形">
           <button type="button" data-v="all" class="on">全部</button>
           <button type="button" data-v="ecg">ECG</button>
@@ -310,8 +323,7 @@ details.more .kv{margin-top:8px}
             <div><div class="lbl"><i class="dot" style="background:var(--ir)"></i>PPG 心率</div><div class="hero"><span class="big3 num" id="roHrP2">--</span><span class="unit">bpm</span></div></div>
           </div>
         </div>
-        <div id="roStatus"></div>
-        <div class="reason" id="roReason"></div>
+        <div class="strow"><div id="roStatus"></div><div class="reason" id="roReason"></div></div>
         <div class="formula">
           <label class="flbl">公式 <select id="profile">
             <option value="CHEST_BODY">胸口裝置-貼胸口</option>
@@ -344,6 +356,18 @@ details.more .kv{margin-top:8px}
     </div>
   </div>
 
+  <div class="card hide" id="ecgCard">
+    <div class="cardhead"><h2>ECG 分析<small>R 波自動偵測（Pan-Tompkins）· 僅供參考與複查，不是診斷</small></h2>
+      <div class="row" style="gap:6px"><button type="button" id="beatsExport">匯出 R 波與 RR 間期 CSV</button></div></div>
+    <div class="ecggrid">
+      <div>
+        <div class="hrvtbl" id="hrvTbl"></div>
+        <div class="sub" style="margin-top:8px;font-size:11.5px">不規則：RR 間期與前後 10 拍中位數相差超過 20%（可能是早期收縮、漏偵測或雜訊，請對照波形確認）。HRV 只用正常 RR（排除不規則、掉包、離身處）。</div>
+      </div>
+      <div><div class="lbl" style="margin-bottom:4px">RR 間期變化（ms）· 點一下跳到該時間</div><canvas id="tacho" height="190"></canvas></div>
+      <div><div class="lbl" style="margin-bottom:4px">Poincaré 圖（藍＝目前視窗、橘＝不規則）</div><canvas id="poinc" height="190"></canvas></div>
+    </div>
+  </div>
 </main>
 
 <script id="imu-src">
@@ -949,8 +973,52 @@ function parse(text){
     const f = IMU.runFusion(t, cols.ACC_X, cols.ACC_Y, cols.ACC_Z, cols.GYRO_X, cols.GYRO_Y, cols.GYRO_Z, knownBias);
     imu = {Q: f.Q, valid: f.valid, bias: knownBias, biasRow, calibDoneTime: f.calibDoneTime, finalBias: f.bias};
   }
+  const ecgDisp = hasEcg ? ecgAppDisplay(cols.ECG) : null;
   return {n, fmt, t, cols, gaps, back, meta, hasEcg, imu,
-    irBp: ppgAppDisplay(cols.PPG_IR), redBp: ppgAppDisplay(cols.PPG_RED), ecgBp: hasEcg ? ecgAppDisplay(cols.ECG) : null};
+    irBp: ppgAppDisplay(cols.PPG_IR), redBp: ppgAppDisplay(cols.PPG_RED), ecgBp: ecgDisp,
+    beats: hasEcg ? detectR(cols.ECG, ecgDisp) : new Int32Array(0)};
+}
+// ---------------- ECG R 波偵測（Pan-Tompkins：5–20 Hz 帶通 → 微分 → 平方 → 150 ms 移動積分 → 自適應門檻 → 250 ms 不反應期）
+//   位置最後校正到 App 畫面同一條 mV 訊號的波峰；離身（原始值連續為 0）的區段不偵測
+function detectR(ecg, disp, gapRows){
+  const n = ecg.length, fs = FS; if (n < fs * 3) return new Int32Array(0);
+  const bp = sosfilt(SOS_ECG, Float64Array.from(ecg, v => Number.isFinite(v) ? v : 0));
+  const sq = new Float32Array(n);
+  for (let i=2;i<n-2;i++){ const d = (2*bp[i+1] + bp[i+2] - bp[i-2] - 2*bp[i-1]) / 8; sq[i] = d*d; }
+  const W = Math.round(0.15 * fs), mwi = new Float32Array(n); let acc = 0;
+  for (let i=0;i<n;i++){ acc += sq[i]; if (i >= W) acc -= sq[i-W]; mwi[i] = acc / W; }
+  // 門檻：每 2.5 秒一格，取前後 5 秒內 MWI 的 98 百分位 × 0.3（大雜訊只影響附近幾秒）
+  const B = Math.round(2.5 * fs), nb = Math.ceil(n / B), thrB = new Float32Array(nb);
+  for (let b=0;b<nb;b++){ const a0 = Math.max(0, (b-1)*B), a1 = Math.min(n, (b+2)*B), v = [];
+    for (let i=a0;i<a1;i+=4) v.push(mwi[i]); v.sort((x,y)=>x-y); thrB[b] = 0.3 * (v[Math.floor(v.length*.98)] || 0); }
+  // 離身：原始 ECG 連續 0 的樣本
+  const zero = new Uint8Array(n); { let run = 0; for (let i=0;i<n;i++){ run = ecg[i] === 0 ? run + 1 : 0; if (run >= 26) for (let k=i-run+1;k<=i;k++) zero[k] = 1; } }
+  // 極性：用整段最大的幾個波決定 R 波朝上或朝下（畫面上的 mV 訊號）
+  const ref = disp || bp;
+  const cand = [], REF = Math.round(0.25 * fs);
+  let last = -REF;
+  for (let i=1;i<n-1;i++){
+    const th = thrB[Math.floor(i / B)];
+    if (!(mwi[i] > th && mwi[i] >= mwi[i-1] && mwi[i] > mwi[i+1]) || th <= 0) continue;
+    // 在 MWI 峰前 200 ms～後 50 ms 找帶通訊號絕對值最大處
+    let best = -1, bv = -1;
+    for (let k=Math.max(0, i - Math.round(0.2*fs)); k<=Math.min(n-1, i + Math.round(0.05*fs)); k++){ const a = Math.abs(bp[k]); if (a > bv){ bv = a; best = k; } }
+    if (best < 0 || zero[best]) continue;
+    if (best - last < REF){ if (bv > Math.abs(bp[cand[cand.length-1]])) { cand[cand.length-1] = best; last = best; } continue; }
+    cand.push(best); last = best;
+  }
+  // 極性：每一拍在附近找畫面訊號絕對值最大的點，看它朝上還是朝下（R 波通常是最大的那個波）
+  let pos = 0, neg = 0;
+  for (const c of cand){ let mk = c, mv = -1;
+    for (let k=Math.max(0, c - Math.round(0.12*fs)); k<=Math.min(n-1, c + Math.round(0.04*fs)); k++){ const a = Math.abs(ref[k]); if (a > mv){ mv = a; mk = k; } }
+    if (ref[mk] >= 0) pos++; else neg++; }
+  // 單向帶通會讓波峰往後延遲，所以在帶通峰值「往前 120 ms～往後 40 ms」內找畫面訊號真正的 R 波頂點
+  const sgn = pos >= neg ? 1 : -1, RB = Math.round(0.12 * fs), RA = Math.round(0.04 * fs);
+  const out = new Int32Array(cand.length);
+  for (let j=0;j<cand.length;j++){ const c = cand[j]; let b = c, bv = -Infinity;
+    for (let k=Math.max(0, c-RB); k<=Math.min(n-1, c+RA); k++){ const v = sgn * ref[k]; if (v > bv){ bv = v; b = k; } }
+    out[j] = b; }
+  return out;
 }
 // ---------------- 校正 CSV（從校正那一刻開始錄）→ 在主 CSV 中找起點
 function lowerBound(a, x){ let lo = 0, hi = a.length; while (lo < hi){ const m = (lo+hi)>>1; if (a[m] < x) lo = m+1; else hi = m; } return lo; }
@@ -1059,7 +1127,7 @@ onmessage = e => {
   try {
     if (m.type === "load"){
       D = parse(m.text);
-      const out = {n:D.n, fmt:D.fmt, t:D.t, gaps:D.gaps, back:D.back, meta:D.meta, hasEcg:D.hasEcg, imu:D.imu, cols:{}, irBp:D.irBp, redBp:D.redBp, ecgBp:D.ecgBp};
+      const out = {n:D.n, fmt:D.fmt, t:D.t, gaps:D.gaps, back:D.back, meta:D.meta, hasEcg:D.hasEcg, imu:D.imu, cols:{}, irBp:D.irBp, redBp:D.redBp, ecgBp:D.ecgBp, beats:D.beats};
       for (const k in D.cols) if (k !== "Time") out.cols[k] = D.cols[k].slice();
       const tr = [out.t.buffer.slice(0)]; out.t = new Float64Array(tr[0]);
       postMessage({type:"data", d: out});
@@ -1259,6 +1327,14 @@ function friendly(reason){
   for (const part of reason.split("、")){ const m = REASON_MAP.find(([re]) => re.test(part)); const t = m ? m[1] : "訊號品質不佳"; if (!out.includes(t)) out.push(t); }
   return out.join("、");
 }
+// 讀值卡用的短版（一行放得下）；完整說明放在滑鼠提示
+function relShort(r){
+  const why = friendly(r.reason);
+  if (r.status === "HOLD") return "沿用前次讀數" + (why ? "・" + why : "");
+  if (r.status === "NO_OUTPUT") return why || "目前無法判讀";
+  if (r.status === "WARMUP") return "感測器穩定中";
+  return "";
+}
 function relText(r){
   const why = friendly(r.reason);
   if (r.status === "HOLD") return `訊號暫時不穩${why ? `（${why}）` : ""}，顯示的是前一次可信讀數`;
@@ -1295,6 +1371,7 @@ worker.onmessage = e => {
   else if (m.type === "error"){ hideProg(); $("info").textContent = "錯誤：" + m.msg; }
   else if (m.type === "data"){
     D = m.d; cur = Math.min(D.t[D.n-1], D.t[0] + winSec);
+    ECGA = D.hasEcg ? analyzeBeats() : null; lfhfCache = ECGA ? lfhf() : null;
     const lost = D.gaps.reduce((s,g)=>s+g.missing, 0);
     let s = `${fileName}\n${D.fmt==="new" ? "新版 CSV（Time = 序號/256）" : "舊版 CSV（原始 Time 倒退 "+D.back+" 次，已重建為 列號/256）"} · ${D.n} 樣本（${(D.n/FS).toFixed(1)} s）`;
     if (D.fmt === "new") s += ` · 掉包 ${D.gaps.length} 處，共 ${lost} 樣本（${(100*lost/(D.n+lost)).toFixed(2)}%）`;
@@ -1510,6 +1587,20 @@ function drawWave(){
     yAxis(ctx, X.x, y, X.w, H, lo, hi, H > 300 ? 8 : H > 150 ? 5 : 3);
     ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, H); ctx.clip();
     for (const [arr, col] of p.ser) drawSeries(ctx, D.t, arr, i0, i1, x0, x1, X, y, H, lo, hi, col);
+    if (p.key === "ecg" && ECGA && $("ecgA").checked){
+      const A = ECGA, arr = p.ser[0][0], j0 = lowerBound(A.bt, x0), j1 = lowerBound(A.bt, x1);
+      const pxT = t => X.x + (t - x0) / win * X.w, pyV = v => y + H - (v - lo) / (hi - lo) * H;
+      ctx.font = "600 10.5px " + FONT; ctx.textAlign = "center";
+      for (let j=j0;j<j1;j++){
+        const xx = pxT(A.bt[j]), vv = arr[A.b[j]], yy = Number.isFinite(vv) ? Math.max(y + 8, Math.min(y + H - 4, pyV(vv))) : y + 10;
+        ctx.fillStyle = css(A.irr[j] ? "--hold" : "--red");
+        ctx.beginPath(); ctx.moveTo(xx, yy - 3); ctx.lineTo(xx - 4.5, yy - 11); ctx.lineTo(xx + 4.5, yy - 11); ctx.closePath(); ctx.fill();
+        if (j > 0 && Number.isFinite(A.rr[j]) && win <= 20){
+          const xm = (pxT(A.bt[j-1]) + xx) / 2, lbl = Math.round(A.rr[j] * 1000) + (A.irr[j] ? " 不規則" : "");
+          ctx.fillStyle = css(A.irr[j] ? "--hold" : "--muted"); ctx.fillText(lbl, xm, y + H - 6);
+        }
+      }
+    }
     // 掉包
     ctx.strokeStyle = css("--gap"); ctx.setLineDash([3,3]);
     if ($("showGaps").checked) for (const g of D.gaps){ const gx = X.x + (g.t + 0.5/FS - x0) / win * X.w; if (gx >= X.x && gx <= X.x + X.w){ ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y+H); ctx.stroke(); } }
@@ -1657,6 +1748,116 @@ trend.addEventListener("pointermove", e => {
   tip.classList.add("on");
 });
 
+// ---------------- ECG 分析（R 波 → RR 間期 → 不規則提示、HRV）
+let ECGA = null;
+function analyzeBeats(){
+  const b = D.beats || new Int32Array(0), n = b.length;
+  const bt = Float64Array.from(b, k => D.t[k]), rr = new Float64Array(n).fill(NaN), irr = new Uint8Array(n);
+  const gapRows = D.gaps.map(g => g.row);
+  for (let j=1;j<n;j++){
+    const v = bt[j] - bt[j-1];
+    const gi = lowerBound(gapRows, b[j-1] + 1), hasGap = gi < gapRows.length && gapRows[gi] <= b[j];
+    if (v >= 0.3 && v <= 2.0 && !hasGap) rr[j] = v;         // 跨掉包或不合生理範圍的 RR 不算
+  }
+  for (let j=1;j<n;j++){ if (!Number.isFinite(rr[j])) continue;
+    const nb = []; for (let k=Math.max(1, j-5); k<=Math.min(n-1, j+5); k++) if (k !== j && Number.isFinite(rr[k])) nb.push(rr[k]);
+    if (nb.length < 4) continue; nb.sort((a,b)=>a-b); const md = nb[nb.length >> 1];
+    if (Math.abs(rr[j] - md) / md > 0.2) irr[j] = 1; }
+  return {b, bt, rr, irr};
+}
+function hrvStats(t0, t1){
+  const A = ECGA; if (!A || !A.b.length) return null;
+  const j0 = Math.max(1, lowerBound(A.bt, t0)), j1 = lowerBound(A.bt, t1 + 1e-9);
+  const nn = [], sd = []; let irrN = 0, beats = Math.max(0, j1 - j0);
+  for (let j=j0;j<j1;j++){
+    if (A.irr[j]) { irrN++; continue; }
+    if (!Number.isFinite(A.rr[j])) continue;
+    nn.push(A.rr[j]);
+    if (j > 1 && Number.isFinite(A.rr[j-1]) && !A.irr[j-1]) sd.push(A.rr[j] - A.rr[j-1]);
+  }
+  if (nn.length < 3) return {beats, irrN, nnN: nn.length};
+  const m = nn.reduce((a,b)=>a+b,0) / nn.length;
+  const sdnn = Math.sqrt(nn.reduce((a,b)=>a+(b-m)*(b-m),0) / (nn.length - 1));
+  const rmssd = sd.length ? Math.sqrt(sd.reduce((a,b)=>a+b*b,0) / sd.length) : NaN;
+  const pnn50 = sd.length ? 100 * sd.filter(d => Math.abs(d) > 0.05).length / sd.length : NaN;
+  return {beats, irrN, nnN: nn.length, hr: 60 / m, meanRR: m, sdnn, rmssd, pnn50, nnDur: nn.reduce((a,b)=>a+b,0)};
+}
+// LF/HF：正常 RR 以 4 Hz 線性內插、去趨勢，Welch（256 點 = 64 秒、重疊 50%、Hann），需 ≥ 5 分鐘
+function lfhf(){
+  const A = ECGA; if (!A) return null;
+  const tt = [], vv = [];
+  for (let j=1;j<A.b.length;j++) if (Number.isFinite(A.rr[j]) && !A.irr[j]){ tt.push(A.bt[j]); vv.push(A.rr[j]); }
+  if (tt.length < 10 || tt[tt.length-1] - tt[0] < 300) return null;
+  const fsI = 4, N = Math.floor((tt[tt.length-1] - tt[0]) * fsI), x = new Float64Array(N); let k = 0;
+  for (let i=0;i<N;i++){ const t = tt[0] + i / fsI; while (k < tt.length - 2 && tt[k+1] < t) k++; const a = (t - tt[k]) / ((tt[k+1] - tt[k]) || 1); x[i] = vv[k] + (vv[k+1] - vv[k]) * Math.max(0, Math.min(1, a)); }
+  const L = 256, hop = 128; let lf = 0, hf = 0, segs = 0;
+  for (let s0 = 0; s0 + L <= N; s0 += hop){
+    let mean = 0; for (let i=0;i<L;i++) mean += x[s0+i]; mean /= L;
+    for (let kk = 1; kk < L/2; kk++){
+      const f = kk * fsI / L; if (f < 0.04 || f > 0.4) continue;
+      let re = 0, im = 0;
+      for (let i=0;i<L;i++){ const w = 0.5 - 0.5*Math.cos(2*Math.PI*i/(L-1)), v = (x[s0+i] - mean) * w, ang = -2*Math.PI*kk*i/L; re += v*Math.cos(ang); im += v*Math.sin(ang); }
+      const pw = re*re + im*im; if (f < 0.15) lf += pw; else hf += pw;
+    }
+    segs++;
+  }
+  return segs && hf > 0 ? {ratio: lf / hf, lfPct: 100 * lf / (lf + hf), hfPct: 100 * hf / (lf + hf)} : null;
+}
+let lfhfCache = null;
+function renderEcgCard(){
+  const on = $("ecgA").checked && D && D.hasEcg;
+  $("ecgCard").classList.toggle("hide", !on);
+  if (!on || !ECGA) return;
+  const all = hrvStats(tMin(), tMax()), win = hrvStats(cur - 60, cur);
+  const c = (o, k, d, u = "") => o && Number.isFinite(o[k]) ? o[k].toFixed(d) + u : "--";
+  const rows = [["平均心率", "hr", 0, " bpm"], ["SDNN", "sdnn", 0, " ms", 1000], ["RMSSD", "rmssd", 0, " ms", 1000], ["pNN50", "pnn50", 1, " %"]];
+  const cell = (o, [_, k, d, u, sc]) => o && Number.isFinite(o[k]) ? (o[k] * (sc || 1)).toFixed(d) + u : "--";
+  const html = `<table><tr><th></th><th>目前視窗（前 60 秒）</th><th>整段</th></tr>` +
+    rows.map(r => `<tr><td>${r[0]}</td><td>${cell(win, r)}</td><td>${cell(all, r)}</td></tr>`).join("") +
+    `<tr><td>偵測到的心跳</td><td>${win ? win.beats : 0}</td><td>${all ? all.beats : 0}</td></tr>` +
+    `<tr><td>不規則心跳</td><td style="color:${win && win.irrN ? "var(--hold)" : "inherit"}">${win ? win.irrN : 0}</td><td style="color:${all && all.irrN ? "var(--hold)" : "inherit"}">${all ? all.irrN : 0}</td></tr>` +
+    `<tr><td>LF/HF</td><td style="color:var(--faint)">需 ≥ 5 分鐘</td><td>${lfhfCache ? `${lfhfCache.ratio.toFixed(2)}（LF ${lfhfCache.lfPct.toFixed(0)}%・HF ${lfhfCache.hfPct.toFixed(0)}%）` : "<span style=\"color:var(--faint)\">資料不足 5 分鐘</span>"}</td></tr></table>`;
+  if ($("hrvTbl").innerHTML !== html) $("hrvTbl").innerHTML = html;
+  drawTacho(); drawPoinc();
+}
+function drawTacho(){
+  const cv = $("tacho"), {ctx, w, h} = prep(cv), A = ECGA, X = {x: 46, w: w - 46 - 8}, top = 6, H = h - top - 20;
+  const v = []; for (let j=1;j<A.b.length;j++) if (Number.isFinite(A.rr[j])) v.push(A.rr[j]*1000);
+  if (!v.length){ ctx.fillStyle = css("--muted"); ctx.font = "12px " + FONT; ctx.textAlign = "center"; ctx.fillText("沒有偵測到心跳", w/2, h/2); return; }
+  // 範圍一定包含所有 RR（不規則的那幾拍正是要看的，不能被切掉）
+  v.sort((a,b)=>a-b); let lo = v[0], hi = v[v.length-1]; if (hi - lo < 200){ const m = (hi+lo)/2; lo = m - 100; hi = m + 100; } const pd = (hi-lo)*.12; lo -= pd; hi += pd;
+  const px = t => X.x + (t - tMin()) / ((tMax()-tMin()) || 1) * X.w, py = r => top + H - (r - lo) / (hi - lo) * H;
+  frame(ctx, X.x, top, X.w, H, ""); yAxis(ctx, X.x, top, X.w, H, lo, hi, 4);
+  ctx.save(); ctx.beginPath(); ctx.rect(X.x, top, X.w, H); ctx.clip();
+  ctx.strokeStyle = css("--ecg"); ctx.lineWidth = 1.2; ctx.beginPath(); let on = false;
+  for (let j=1;j<A.b.length;j++){ const r = A.rr[j]; if (!Number.isFinite(r) || A.irr[j]){ on = false; continue; } const x = px(A.bt[j]), y = py(r*1000); if (!on){ ctx.moveTo(x, y); on = true; } else ctx.lineTo(x, y); }
+  ctx.stroke();
+  ctx.fillStyle = css("--hold"); for (let j=1;j<A.b.length;j++) if (A.irr[j] && Number.isFinite(A.rr[j])){ ctx.beginPath(); ctx.arc(px(A.bt[j]), py(A.rr[j]*1000), 2.6, 0, 7); ctx.fill(); }
+  ctx.restore();
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), top + H); ctx.stroke();
+  ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
+  for (const t of niceTicks(tMin(), tMax(), 6)) ctx.fillText(t.toFixed(0) + " s", px(t), h - 5);
+}
+function drawPoinc(){
+  const cv = $("poinc"), {ctx, w, h} = prep(cv), A = ECGA, S = Math.min(w, h), X0 = 40, Y0 = 6, L = S - X0 - 18;
+  const pts = []; for (let j=2;j<A.b.length;j++) if (Number.isFinite(A.rr[j]) && Number.isFinite(A.rr[j-1])) pts.push([A.rr[j-1]*1000, A.rr[j]*1000, A.bt[j], A.irr[j] || A.irr[j-1]]);
+  if (!pts.length) return;
+  const all = pts.flatMap(p => [p[0], p[1]]).sort((a,b)=>a-b); let lo = all[0], hi = all[all.length-1];
+  if (hi - lo < 200){ const m = (hi+lo)/2; lo = m - 100; hi = m + 100; } const pd = (hi-lo)*.1; lo -= pd; hi += pd;
+  const sx = v => X0 + (v - lo) / (hi - lo) * L, sy = v => Y0 + L - (v - lo) / (hi - lo) * L;
+  frame(ctx, X0, Y0, L, L, ""); yAxis(ctx, X0, Y0, L, L, lo, hi, 4);
+  ctx.strokeStyle = css("--line"); ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(sx(lo), sy(lo)); ctx.lineTo(sx(hi), sy(hi)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.save(); ctx.beginPath(); ctx.rect(X0, Y0, L, L); ctx.clip();
+  for (const [a, b, t, ir] of pts){ const inWin = t >= cur - 60 && t <= cur;
+    ctx.fillStyle = css(ir ? "--hold" : inWin ? "--accent" : "--muted"); ctx.globalAlpha = inWin || ir ? .9 : .35;
+    ctx.fillRect(sx(a) - 1.5, sy(b) - 1.5, 3, 3); }
+  ctx.globalAlpha = 1; ctx.restore();
+  ctx.fillStyle = css("--muted"); ctx.font = "10px " + FONT; ctx.textAlign = "center"; ctx.fillText("RRₙ (ms)", X0 + L/2, Y0 + L + 14);
+}
+$("ecgA").addEventListener("change", draw);
+$("tacho").addEventListener("pointerdown", e => { if (!D) return; const r = $("tacho").getBoundingClientRect(); stop();
+  setCur(tMin() + (e.clientX - r.left - 46) / (r.width - 54) * (tMax() - tMin())); });
+
 // ---------------- 讀值
 const f = (v, d) => Number.isFinite(v) ? v.toFixed(d) : "--";
 function readout(){
@@ -1672,7 +1873,7 @@ function readout(){
   if ($("roStatus").innerHTML !== badge) $("roStatus").innerHTML = badge;
   // 兩種心率都只顯示這一秒真的量到的值（量不到就 --，不沿用舊值）
   set("roHrE", f(r.hrEcg, 0)); set("roHrP2", f(r.hrPpgNow, 0));
-  set("roReason", relText(r));
+  set("roReason", relShort(r)); $("roReason").title = relText(r);
 }
 $("export").onclick = () => {
   const q = v => Number.isFinite(v) ? v : "";
@@ -1821,7 +2022,7 @@ function drawNow(){
   const now = performance.now(); frameDt = lastFrameT ? Math.min(100, now - lastFrameT) : 16; lastFrameT = now; animating = false;
   const r = winTarget / winSec;
   if (Math.abs(Math.log(r)) > 0.002){ winSec *= Math.pow(r, 1 - Math.exp(-frameDt / 70)); animating = true; } else winSec = winTarget;
-  drawWave(); drawTrend(); readout(); drawImu();
+  drawWave(); drawTrend(); readout(); drawImu(); renderEcgCard();
   if (animating) draw(); else lastFrameT = 0;
   if (D){ const tn = `${cur.toFixed(2)} <span>/ ${tMax().toFixed(2)} s</span>`; if ($("tnow").innerHTML !== tn) $("tnow").innerHTML = tn;
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
