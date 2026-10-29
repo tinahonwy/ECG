@@ -187,6 +187,12 @@ details.more .kv{margin-top:8px}
 .ftext{margin-top:8px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
 .hint{display:flex!important;flex-wrap:wrap;align-items:center;gap:4px 10px}
 .gapchk{margin-left:auto;font-size:11.5px}
+.trendwrap{position:relative}
+#trend{cursor:crosshair;touch-action:none}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;line-height:1.45;padding:6px 9px;border-radius:8px;white-space:nowrap;opacity:0;transform:translate(-50%,-110%);transition:opacity .08s}
+.tip.on{opacity:.94}
+.relchip{display:inline-flex;align-items:center;gap:5px}
+.relchip b{width:10px;height:10px;border-radius:3px;display:inline-block}
 </style>
 </head>
 <body>
@@ -242,6 +248,8 @@ details.more .kv{margin-top:8px}
       <canvas id="wave" height="440"></canvas>
       <div class="hint"><span>拖曳平移 · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>＋滾輪縮放 · <kbd>空白鍵</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 前後 1 秒</span>
         <label class="chk gapchk"><input id="showGaps" type="checkbox"> 顯示掉包位置</label></div>
+      <div class="cardhead" style="margin-top:20px"><h2>SpO2 與心率變化<small>點一下跳到該時間</small></h2><span class="legend" id="relLegend"></span></div>
+      <div class="trendwrap"><canvas id="trend" height="360"></canvas><div id="tip" class="tip"></div></div>
     </div>
     <div class="side">
       <div class="card readout">
@@ -492,7 +500,7 @@ const CS = (() => {
 
     mk(t, status, extra = {}) {
       return Object.assign({ t, status, hr: NaN, hrTd: NaN, hrNaive: NaN, r: NaN, spo2Raw: NaN, spo2Out: NaN, method: "",
-        reason: "", ecgState: "", hrPpg: NaN, profile: "", rOut: NaN, rC: NaN, rCOut: NaN }, extra);
+        reason: "", ecgState: "", hrPpg: NaN, profile: "", rOut: NaN, rC: NaN, rCOut: NaN, hrEcg: NaN, hrPpgNow: NaN }, extra);
     }
     emit(r, rowIdx) { r.profile = this.profile.label; r.endIdx = rowIdx; this.onResult(r); }
 
@@ -681,6 +689,7 @@ const CS = (() => {
     // ---------------- 每秒計算
     compute(tc, ir, red, bp, bpLow, ax, ay, az, ecgBp, ecgRaw, bpRed) {
       const fs = this.fs, P = this.profile;
+      this._ecgHr = NaN;   // 這一秒 ECG 時域心率（只供顯示比對，不影響計算）
       this.track = this.track.filter(x => !(tc - x[0] > TRACK_S));
       this.trackPpg = this.trackPpg.filter(x => !(tc - x[0] > TRACK_S));
       this.ecgStatusText = ecgBp == null ? "未提供" : "";
@@ -717,6 +726,7 @@ const CS = (() => {
       const leadOff = ecgRaw != null && ChestSpO2.longestZeroRun(ecgRaw) >= Math.trunc(ECG_ZERO_RUN_S * fs);
       const ecgBeats = useEcg && !leadOff ? this.detectEcgBeats(ecgBp) : [];
       let [hrTd, tdOk] = useEcg ? tdFrom(ecgBeats) : ppgTd;
+      if (useEcg && tdOk) this._ecgHr = 60 * hrTd;
       let confirming = false;
       if (useEcg) {
         if (tdOk && (isNaN_(this.ecgStreakHz) || Math.abs(hrTd - this.ecgStreakHz) <= tol)) this.ecgStreak++;
@@ -792,7 +802,8 @@ const CS = (() => {
       this.histC = this.histC.filter(x => !(tc - x[0] > SMOOTH_S));
       this.lastRCOut = this.histC.length ? median(this.histC.map(x => x[1])) : NaN;
       return this.mk(tc, status, { hr: 60 * fHr, hrTd: 60 * hrTd, hrNaive: 60 * fNaive, r, spo2Raw, spo2Out: this.lastOut,
-        method, reason, ecgState: this.ecgStatusText, hrPpg: this.lastPpgHr, rOut: this.lastROut, rC, rCOut: this.lastRCOut });
+        method, reason, ecgState: this.ecgStatusText, hrPpg: this.lastPpgHr, rOut: this.lastROut, rC, rCOut: this.lastRCOut,
+        hrEcg: this._ecgHr ?? NaN, hrPpgNow: 60 * fPpg });
     }
   }
   return { ChestSpO2, PROFILES, calibrate };
@@ -1054,6 +1065,23 @@ $("settle").addEventListener("change", () => $("rerun").click());
 
 // ---------------- 校正 CSV
 function sendCalib(){ calUi("處理中…"); worker.postMessage({type:"calib", text: calText}); }
+// 狀態與原因：用醫生看得懂的說法，但一定對應演算法當下真正判定的原因（不捏造）
+const REL = {UPDATE: {name: "可信", col: "--ok"}, HOLD: {name: "參考值", col: "--hold"}, NO_OUTPUT: {name: "無法判讀", col: "--bad"}, WARMUP: {name: "暖機中", col: "--warm"}};
+const REASON_MAP = [[/動作/, "身體晃動"], [/離身|DC/, "感測器可能未貼好"], [/心跳峰不明顯/, "脈搏訊號太弱"], [/不同步/, "光訊號不穩定"],
+  [/R 過高|R 值異常/, "訊號品質不佳"], [/時域|頻域|頻譜|追蹤|ECG|心率/, "心跳判讀不穩定"], [/穩定中|累積/, "感測器穩定中"]];
+function friendly(reason){
+  if (!reason) return "";
+  const out = [];
+  for (const part of reason.split("、")){ const m = REASON_MAP.find(([re]) => re.test(part)); const t = m ? m[1] : "訊號品質不佳"; if (!out.includes(t)) out.push(t); }
+  return out.join("、");
+}
+function relText(r){
+  const why = friendly(r.reason);
+  if (r.status === "HOLD") return `訊號暫時不穩${why ? `（${why}）` : ""}，顯示的是前一次可信讀數`;
+  if (r.status === "NO_OUTPUT") return `目前無法判讀${why ? `（${why}）` : ""}`;
+  if (r.status === "WARMUP") return "感測器穩定中，稍後開始輸出";
+  return "";
+}
 const CAL_HINT = "從校正那一刻開始錄的檔案，上傳後會自動找到開始時間";
 function calUi(msg, full, state){
   $("calStart").disabled = $("calClear").disabled = !CAL;
@@ -1120,7 +1148,7 @@ worker.onmessage = e => {
   }
   else if (m.type === "calibError"){ CAL = null; calStart = null; calUi("⚠ " + m.msg, "", "warn"); draw(); }
   else if (m.type === "results"){
-    hideProg(); RES = m.res;
+    hideProg(); RES = m.res; resVer++;
     RES_T = Float64Array.from(RES, r => D.t[Math.max(0, r.endIdx)]);
     $("export").disabled = false;
     draw();
@@ -1304,6 +1332,131 @@ function drawWave(){
 }
 
 // ---------------- 趨勢
+// ---------------- SpO2 變化圖＋可信度色帶（靜態部分快取，每幀只畫游標）
+const trend = $("trend"), tip = $("tip");
+let trendCache = null, trendKey = "", resVer = 0;
+const TG = (w, h) => { const X = {x: 56, w: w - 56 - 14}, band = 14, top = 6, bottom = 22, gap = 12;
+  const avail = h - top - bottom - band - 8 - gap, h1 = Math.round(avail * .5), h2 = avail - h1;
+  return {X, top, plotH: h1, hrTop: top + h1 + gap, hrH: h2, bandY: top + h1 + gap + h2 + 8, band, bottom}; };
+const tpx = (t, X) => X.x + (t - tMin()) / ((tMax() - tMin()) || 1) * X.w;
+function drawTrend(){
+  const {ctx, w, h} = prep(trend);
+  if (!D) return;
+  const dpr = window.devicePixelRatio || 1, key = [w, h, dpr, resVer, css("--bg")].join("|");
+  if (key !== trendKey){
+    trendCache = trendCache || document.createElement("canvas");
+    trendCache.width = Math.round(w*dpr); trendCache.height = Math.round(h*dpr);
+    const c2 = trendCache.getContext("2d"); c2.setTransform(dpr,0,0,dpr,0,0); c2.clearRect(0,0,w,h);
+    drawTrendStatic(c2, w, h); trendKey = key;
+  }
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(trendCache, 0, 0); ctx.restore();
+  const g = TG(w, h), xc = tpx(cur, g.X);
+  ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(tpx(cur - winSec, g.X), g.top, xc - tpx(cur - winSec, g.X), g.bandY + g.band - g.top); ctx.globalAlpha = 1;
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(xc, g.top); ctx.lineTo(xc, g.bandY + g.band); ctx.stroke();
+  if (!RES.length){ ctx.fillStyle = css("--muted"); ctx.font = "13px " + FONT; ctx.textAlign = "center"; ctx.fillText("計算中…", w/2, h/2); }
+}
+function drawTrendStatic(ctx, w, h){
+  const g = TG(w, h), X = g.X, px = t => tpx(t, X);
+  // 縱軸：依可信讀數決定，至少 6 %
+  const v = RES.filter(r => r.status === "UPDATE" && Number.isFinite(r.spo2Out)).map(r => r.spo2Out).sort((a,b)=>a-b);
+  let lo = v.length ? v[Math.floor(v.length*.01)] : 90, hi = v.length ? v[Math.floor(v.length*.99)] : 100;
+  if (hi - lo < 6){ const m = (hi + lo) / 2; lo = m - 3; hi = m + 3; }
+  const pad = (hi - lo) * .12; lo -= pad; hi += pad;
+  const py = s => g.top + g.plotH - (s - lo) / (hi - lo) * g.plotH;
+  frame(ctx, X.x, g.top, X.w, g.plotH, "");
+  ctx.font = "10.5px " + FONT; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const t of niceTicks(lo, hi, 4)){ const yy = py(t); if (yy < g.top + 4 || yy > g.top + g.plotH - 4) continue;
+    ctx.strokeStyle = css("--grid"); ctx.beginPath(); ctx.moveTo(X.x, Math.round(yy)+.5); ctx.lineTo(X.x + X.w, Math.round(yy)+.5); ctx.stroke();
+    ctx.fillStyle = css("--muted"); ctx.fillText(Math.round(t) + "%", X.x - 5, yy); }
+  ctx.textBaseline = "alphabetic";
+  // 可信度色帶
+  for (let i = 0; i < RES.length; i++){
+    const xa = px(i ? RES_T[i-1] : RES_T[i] - 1), xb = px(RES_T[i]);
+    ctx.fillStyle = css((REL[RES[i].status] || REL.WARMUP).col); ctx.globalAlpha = RES[i].status === "WARMUP" ? .35 : .85;
+    ctx.fillRect(xa, g.bandY, Math.max(1, xb - xa + .5), g.band);
+  }
+  ctx.globalAlpha = 1;
+  // SpO2 線：可信 = 實線；參考值（沿用前值）= 虛線，避免被當成新量到的數值
+  ctx.save(); ctx.beginPath(); ctx.rect(X.x, g.top, X.w, g.plotH); ctx.clip();
+  let prev = null;
+  for (let i = 0; i < RES.length; i++){
+    const r = RES[i], s = r.spo2Out;
+    if (!Number.isFinite(s) || (r.status !== "UPDATE" && r.status !== "HOLD")){ prev = null; continue; }
+    const p = [px(RES_T[i]), py(s)];
+    if (prev){
+      const hold = r.status === "HOLD";
+      ctx.strokeStyle = css(hold ? "--hold" : "--accent"); ctx.lineWidth = hold ? 1.4 : 2; ctx.setLineDash(hold ? [4, 3] : []);
+      ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    }
+    prev = p;
+  }
+  ctx.setLineDash([]); ctx.restore();
+  // 心率：ECG 與 PPG 各自每秒的值（量不到就留空，不沿用）
+  { const all = []; for (const r of RES){ if (Number.isFinite(r.hrEcg)) all.push(r.hrEcg); if (Number.isFinite(r.hrPpgNow)) all.push(r.hrPpgNow); }
+    all.sort((a,b)=>a-b);
+    let hl = all.length ? all[Math.floor(all.length*.01)] : 50, hh = all.length ? all[Math.floor(all.length*.99)] : 100;
+    if (hh - hl < 30){ const m = (hh + hl) / 2; hl = m - 15; hh = m + 15; }
+    const hp = (hh - hl) * .1; hl -= hp; hh += hp;
+    const hy = v => g.hrTop + g.hrH - (v - hl) / (hh - hl) * g.hrH;
+    frame(ctx, X.x, g.hrTop, X.w, g.hrH, "");
+    ctx.font = "10.5px " + FONT; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (const t of niceTicks(hl, hh, 4)){ const yy = hy(t); if (yy < g.hrTop + 4 || yy > g.hrTop + g.hrH - 4) continue;
+      ctx.strokeStyle = css("--grid"); ctx.beginPath(); ctx.moveTo(X.x, Math.round(yy)+.5); ctx.lineTo(X.x + X.w, Math.round(yy)+.5); ctx.stroke();
+      ctx.fillStyle = css("--muted"); ctx.fillText(Math.round(t), X.x - 5, yy); }
+    ctx.textBaseline = "alphabetic";
+    ctx.save(); ctx.beginPath(); ctx.rect(X.x, g.hrTop, X.w, g.hrH); ctx.clip();
+    for (const [k, col, lw] of [["hrPpgNow", "--ir", 1.4], ["hrEcg", "--ecg", 1.8]]){
+      ctx.strokeStyle = css(col); ctx.lineWidth = lw; ctx.beginPath(); let on = false;
+      for (let i = 0; i < RES.length; i++){ const v = RES[i][k];
+        if (!Number.isFinite(v)){ on = false; continue; }
+        const x = px(RES_T[i]), y = hy(v);
+        if (!on){ ctx.moveTo(x, y); on = true; } else ctx.lineTo(x, y); }
+      ctx.stroke();
+      // 單獨一秒的點也要看得到
+      ctx.fillStyle = css(col);
+      for (let i = 0; i < RES.length; i++){ const v = RES[i][k]; if (!Number.isFinite(v)) continue;
+        const pv = i ? RES[i-1][k] : NaN, nv = i < RES.length - 1 ? RES[i+1][k] : NaN;
+        if (!Number.isFinite(pv) && !Number.isFinite(nv)) ctx.fillRect(px(RES_T[i]) - 1.5, hy(v) - 1.5, 3, 3); }
+    }
+    ctx.restore();
+    tagLabel(ctx, "心率 (bpm)", X.x + 8, g.hrTop + 14);
+  }
+  tagLabel(ctx, "SpO2", X.x + 8, g.top + 14);
+  // 時間軸
+  ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
+  const tk = niceTicks(tMin(), tMax(), 10), st = tk.length > 1 ? tk[1] - tk[0] : 1;
+  for (const t of tk) ctx.fillText(t.toFixed(st >= 1 ? 0 : 1) + " s", px(t), h - 6);
+  // 圖例比例
+  const cnt = {}; for (const r of RES) cnt[r.status] = (cnt[r.status] || 0) + 1;
+  const n = RES.length - (cnt.WARMUP || 0) || 1;
+  $("relLegend").innerHTML = ["UPDATE", "HOLD", "NO_OUTPUT"].map(k =>
+    `<span class="relchip"><b style="background:var(${REL[k].col})"></b>${REL[k].name} ${Math.round(100 * (cnt[k] || 0) / n)}%</span>`).join("") +
+    `<span class="relchip" style="color:var(--faint)">虛線 = 沿用前一次可信讀數</span>`;
+  const both = RES.filter(r => Number.isFinite(r.hrEcg) && Number.isFinite(r.hrPpgNow));
+  const mad = both.length ? both.reduce((s, r) => s + Math.abs(r.hrEcg - r.hrPpgNow), 0) / both.length : NaN;
+  $("relLegend").innerHTML += `<span class="relchip"><i style="background:var(--ecg);width:14px;height:3px;border-radius:2px;display:inline-block"></i>ECG 心率</span>` +
+    `<span class="relchip"><i style="background:var(--ir);width:14px;height:3px;border-radius:2px;display:inline-block"></i>PPG 心率</span>` +
+    `<span class="relchip" style="color:var(--muted)">${both.length ? `兩者平均差 ${mad.toFixed(1)} bpm（${both.length} 秒都有值）` : "沒有 ECG 和 PPG 同時有值的時段"}</span>`;
+}
+// 點選／拖曳跳轉；滑過顯示該秒狀態
+let tDrag = false;
+const trendT = e => { const r = trend.getBoundingClientRect(), g = TG(r.width, +trend.dataset.h || 200);
+  return tMin() + (e.clientX - r.left - g.X.x) / g.X.w * (tMax() - tMin()); };
+trend.addEventListener("pointerdown", e => { if (!D) return; tDrag = true; trend.setPointerCapture(e.pointerId); stop(); setCur(trendT(e)); });
+trend.addEventListener("pointerup", () => tDrag = false);
+trend.addEventListener("pointerleave", () => tip.classList.remove("on"));
+trend.addEventListener("pointermove", e => {
+  if (!D || !RES.length) return;
+  const t = trendT(e); if (tDrag) setCur(t);
+  const i = Math.min(RES.length - 1, Math.max(0, lowerBound(RES_T, t)));
+  const r = RES[i], name = (REL[r.status] || {}).name || r.status, why = relText(r);
+  const hb = v => Number.isFinite(v) ? Math.round(v) + " bpm" : "量不到";
+  tip.innerHTML = `<b>${RES_T[i].toFixed(0)} s · SpO2 ${Number.isFinite(r.spo2Out) ? Math.round(r.spo2Out) + "%" : "--"} · ${name}</b>${why ? "<br>" + why : ""}` +
+    `<br>ECG 心率 ${hb(r.hrEcg)} · PPG 心率 ${hb(r.hrPpgNow)}`;
+  const rc = trend.getBoundingClientRect(); tip.style.left = Math.max(120, Math.min(rc.width - 120, e.clientX - rc.left)) + "px"; tip.style.top = (e.clientY - rc.top) + "px";
+  tip.classList.add("on");
+});
+
 // ---------------- 讀值
 const f = (v, d) => Number.isFinite(v) ? v.toFixed(d) : "--";
 function readout(){
@@ -1314,17 +1467,17 @@ function readout(){
   const r = RES[i];
   set("roSpo2", Number.isFinite(r.spo2Out) ? `${Math.round(r.spo2Out)}` : "--");
   const col = {UPDATE: css("--ok"), HOLD: css("--hold"), NO_OUTPUT: css("--bad"), WARMUP: css("--warm")}[r.status];
-  const stName = {UPDATE: "有效", HOLD: "沿用前值", NO_OUTPUT: "無輸出", WARMUP: "暖機中"}[r.status] || r.status;
+  const stName = (REL[r.status] || {}).name || r.status;
   const badge = `<span class="badge" style="background:${col}">${stName}</span>`;
   if ($("roStatus").innerHTML !== badge) $("roStatus").innerHTML = badge;
   set("roHr", f(Number.isFinite(r.hr) ? r.hr : r.hrPpg, 0));
-  set("roReason", r.status === "UPDATE" ? "" : (r.reason || ""));
+  set("roReason", relText(r));
 }
 $("export").onclick = () => {
   const q = v => Number.isFinite(v) ? v : "";
-  const hdr = "display_time_s,t_center_s,status,HR_bpm,HR_td_bpm,HR_naive_bpm,R,SpO2_raw,SpO2_out,method,reason,ecg_state,HR_ppg_bpm,profile,R_out,R_C,R_C_out";
+  const hdr = "display_time_s,t_center_s,status,HR_bpm,HR_td_bpm,HR_naive_bpm,R,SpO2_raw,SpO2_out,method,reason,ecg_state,HR_ppg_bpm,profile,R_out,R_C,R_C_out,HR_ecg_now_bpm,HR_ppg_now_bpm";
   const lines = RES.map((r,i) => [RES_T[i].toFixed(4), r.t.toFixed(2), r.status, q(r.hr), q(r.hrTd), q(r.hrNaive), q(r.r), q(r.spo2Raw), q(r.spo2Out),
-    r.method, r.reason, r.ecgState, q(r.hrPpg), r.profile, q(r.rOut), q(r.rC), q(r.rCOut)].join(","));
+    r.method, r.reason, r.ecgState, q(r.hrPpg), r.profile, q(r.rOut), q(r.rC), q(r.rCOut), q(r.hrEcg), q(r.hrPpgNow)].join(","));
   const blob = new Blob(["﻿" + hdr + "\n" + lines.join("\n")], {type: "text/csv"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
   a.download = fileName.replace(/\.csv$/i, "") + "_spo2_replay.csv"; a.click();
@@ -1467,7 +1620,7 @@ function drawNow(){
   const now = performance.now(); frameDt = lastFrameT ? Math.min(100, now - lastFrameT) : 16; lastFrameT = now; animating = false;
   const r = winTarget / winSec;
   if (Math.abs(Math.log(r)) > 0.002){ winSec *= Math.pow(r, 1 - Math.exp(-frameDt / 70)); animating = true; } else winSec = winTarget;
-  drawWave(); readout(); drawImu();
+  drawWave(); drawTrend(); readout(); drawImu();
   if (animating) draw(); else lastFrameT = 0;
   if (D){ const tn = `${cur.toFixed(2)} <span>/ ${tMax().toFixed(2)} s</span>`; if ($("tnow").innerHTML !== tn) $("tnow").innerHTML = tn;
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
