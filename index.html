@@ -214,6 +214,10 @@ details.more .kv{margin-top:8px}
 .librow .lc.guess{color:var(--hold)}
 .libnote{padding:8px 12px;font-size:12px;color:var(--hold)}
 @media (max-width:760px){.librow{grid-template-columns:1fr}}
+.dropalt{margin-top:10px;font-size:12px}
+.dropalt a{color:var(--accent)}
+#drop{cursor:default}
+.libdirs{font-size:12px;color:var(--muted);margin:-4px 2px 8px}
 </style>
 </head>
 <body>
@@ -234,13 +238,16 @@ details.more .kv{margin-top:8px}
   </div>
 </div>
 <main>
-  <div id="drop"><strong>把 CSV 或整個資料夾拖到這裡</strong>主要 CSV 和校正 CSV 可以一起放，會依檔名時間自動配對
-    <div class="dropbtns"><button type="button" class="primary" id="pickDir">開啟資料夾…</button><button type="button" id="pickFiles">選擇 CSV（可多選）</button></div>
-    <input id="file" type="file" accept=".csv,text/csv" multiple class="hide"><input id="dirIn" type="file" webkitdirectory multiple class="hide"></div>
+  <div id="drop"><strong>開啟一般 CSV 和校正 CSV 的資料夾</strong>選資料夾就好，裡面的 CSV 會全部讀進來，並依時間自動配對；也可以直接把檔案或資料夾拖進來
+    <div class="dropbtns"><button type="button" class="primary" id="pickMainDir">開啟一般 CSV 資料夾…</button><button type="button" id="pickCalDir">開啟校正 CSV 資料夾…</button></div>
+    <div class="dropalt">或 <a href="#" id="pickFiles">直接選 CSV 檔</a>（可多選，依檔名自動分類）</div>
+    <input id="file" type="file" accept=".csv,text/csv" multiple class="hide">
+    <input id="dirMain" type="file" webkitdirectory multiple class="hide"><input id="dirCal" type="file" webkitdirectory multiple class="hide"></div>
   <div class="card hide" id="libCard">
     <div class="cardhead"><h2>檔案清單<small id="libSum"></small></h2>
       <div class="row" style="gap:6px"><button type="button" id="libPrev">‹ 上一筆</button><button type="button" id="libNext">下一筆 ›</button>
-        <button type="button" id="libAddDir">加入資料夾…</button><button type="button" id="libAddFiles">加入檔案…</button></div></div>
+        <button type="button" id="libMainDir">開啟一般 CSV 資料夾…</button><button type="button" id="libCalDir">開啟校正 CSV 資料夾…</button></div></div>
+    <div class="libdirs" id="libDirs"></div>
     <div class="librows" id="libRows"></div>
   </div>
 
@@ -248,7 +255,7 @@ details.more .kv{margin-top:8px}
     <div class="step">
       <div class="stepn">1</div>
       <div class="stepbody"><div class="steplbl">原始資料</div><div class="stepval" id="fileName">--</div><div class="stepsub" id="info"></div></div>
-      <button class="ghost" id="openBtn" type="button">加入檔案</button>
+      <button class="ghost" id="openBtn" type="button">換資料夾</button>
     </div>
     <div class="step" id="calStep">
       <div class="stepn">2</div>
@@ -258,6 +265,7 @@ details.more .kv{margin-top:8px}
       <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
       <button id="calBtn" type="button" disabled>上傳</button>
       <button id="calClear" class="ghost" type="button" disabled>移除</button>
+      <button id="calDirBtn" class="ghost" type="button" title="開啟放校正 CSV 的資料夾，自動配對">資料夾…</button>
     </div>
     <details class="step settings">
       <summary><span class="gear">⚙</span> 計算設定</summary>
@@ -1076,8 +1084,9 @@ const txt = (id, s) => { const el = $(id); if (el.textContent !== s) el.textCont
 let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false;
 
 // ---------------- 檔案（可一次加入很多 CSV／整個資料夾；主檔與校正檔依檔名時間自動配對）
-const drop = $("drop"), fileIn = $("file"), dirIn = $("dirIn");
+const drop = $("drop"), fileIn = $("file"), dirMain = $("dirMain"), dirCal = $("dirCal");
 const LIB = {mains: [], cals: []};
+LIB.dirs = {main: "", cal: ""};
 let curEntry = null;
 // 檔名時間：主檔 data_2026-10-29_15-03-55_*.csv；校正檔 data_calibrated_20261029_150425.csv
 function nameTime(name){
@@ -1094,17 +1103,27 @@ async function firstTime(f){
   } catch (e) {}
   return NaN;
 }
-async function addFiles(files){
+const isMainName = n => /\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/.test(n) && !isCalName(n);
+// src = "main"（一般資料夾：換掉原本的主檔清單）、"cal"（校正資料夾：換掉原本的校正清單）、"mix"（依檔名分類，累加）
+async function addFiles(files, src = "mix"){
+  const dir = files.length && files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "";
+  if (src === "main"){ LIB.mains = []; LIB.dirs.main = dir; }
+  if (src === "cal"){ LIB.cals = []; LIB.dirs.cal = dir; }
   let added = 0;
   for (const f of files){
     if (!/\.csv$/i.test(f.name)) continue;
-    const cal = isCalName(f.name), list = cal ? LIB.cals : LIB.mains;
+    const cal = src === "cal" ? !isMainName(f.name) : isCalName(f.name), list = cal ? LIB.cals : LIB.mains;
     if (list.some(x => x.file.name === f.name && x.file.size === f.size)) continue;
     list.push({file: f, name: f.name, t: nameTime(f.name), cals: [], T0: cal ? await firstTime(f) : NaN}); added++;
   }
-  if (!added) return;
   pairLib(); renderLib();
-  if (!D && LIB.mains.length) loadEntry(LIB.mains[0]);
+  if (!added && src === "mix") return;
+  if (src !== "mix" && !files.some(f => /\.csv$/i.test(f.name))) alert(`資料夾「${dir}」裡沒有 CSV 檔`);
+  if (curEntry && !LIB.mains.includes(curEntry)) curEntry = null;
+  if (!D && LIB.mains.length){ loadEntry(LIB.mains[0]); return; }
+  if (!curEntry && D && src === "main" && LIB.mains.length){ loadEntry(LIB.mains[0]); return; }
+  // 目前這筆剛配到校正檔（例如後開校正資料夾）→ 自動套上
+  if (curEntry && curEntry.cals[0] && calName !== curEntry.cals[0].name){ calName = curEntry.cals[0].name; calText = await curEntry.cals[0].file.text(); sendCalib(); }
   else if (!LIB.mains.length && LIB.cals.length && !D) $("drop").querySelector("strong").textContent = "只有校正 CSV，請再加入主要 CSV";
 }
 // 配對規則：
@@ -1121,11 +1140,11 @@ function pairLib(){
     if (c.t != null && Number.isFinite(c.T0) && c.T0 >= 0){
       const target = c.t - c.T0 * 1000;
       for (const m of LIB.mains) if (m.t != null && Math.abs(m.t - target) <= 15000 && (!best || Math.abs(m.t - target) < Math.abs(best.t - target))) best = m;
-      if (best) c.how = "time";
+      if (best){ c.how = "time"; for (const m of LIB.mains) if (m !== best && m.t === best.t) m.cals.push(c); }
     }
     if (!best && c.t != null && !(Number.isFinite(c.T0) && c.T0 >= 1)){
       for (const m of LIB.mains) if (m.t != null && m.t <= c.t + 5000 && c.t - m.t <= 6*3600e3 && (!best || m.t > best.t)) best = m;
-      if (best) c.how = "name";
+      if (best){ c.how = "name"; for (const m of LIB.mains) if (m !== best && m.t === best.t) m.cals.push(c); }
     }
     if (best) best.cals.push(c); else LIB.unpaired.push(c);
   }
@@ -1135,10 +1154,11 @@ const fmtT = t => { if (t == null) return "（檔名無時間）"; const d = new
   return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function renderLib(){
-  const show = LIB.mains.length + LIB.cals.length > 1;
+  const show = LIB.mains.length + LIB.cals.length > 1 || !!LIB.dirs.main || !!LIB.dirs.cal;
   $("libCard").classList.toggle("hide", !show);
   const nCal = LIB.mains.filter(m => m.cals.length).length;
   $("libSum").textContent = `${LIB.mains.length} 筆錄製 · ${nCal} 筆有校正`;
+  $("libDirs").textContent = `一般 CSV 資料夾：${LIB.dirs.main || "（未開啟）"}（${LIB.mains.length} 個）　·　校正 CSV 資料夾：${LIB.dirs.cal || "（未開啟）"}（${LIB.cals.length} 個）`;
   $("libRows").innerHTML = LIB.mains.map((m, i) => {
     const c = m.cals[0], dt = c && m.t != null ? Math.round((c.t - m.t) / 1000) : null;
     const cal = c ? `<span class="lc${c.how === "time" ? " ok" : " guess"}" title="${esc(c.name)}">${c.how === "time" ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${c.how === "time" ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}</span>`
@@ -1171,14 +1191,16 @@ async function filesFromDrop(dt){
   for (const en of entries) await walk(en);
   return out;
 }
-drop.onclick = () => fileIn.click();
-$("pickFiles").onclick = e => { e.stopPropagation(); fileIn.click(); };
-$("pickDir").onclick = e => { e.stopPropagation(); dirIn.click(); };
-$("libAddDir").onclick = () => dirIn.click();
-$("libAddFiles").onclick = () => fileIn.click();
-$("openBtn").onclick = () => fileIn.click();
-fileIn.onchange = () => { addFiles([...fileIn.files]); fileIn.value = ""; };
-dirIn.onchange = () => { addFiles([...dirIn.files]); dirIn.value = ""; };
+$("pickFiles").onclick = e => { e.preventDefault(); fileIn.click(); };
+$("pickMainDir").onclick = () => dirMain.click();
+$("pickCalDir").onclick = () => dirCal.click();
+$("libMainDir").onclick = () => dirMain.click();
+$("libCalDir").onclick = () => dirCal.click();
+$("openBtn").onclick = () => dirMain.click();
+$("calDirBtn").onclick = () => dirCal.click();
+fileIn.onchange = () => { addFiles([...fileIn.files], "mix"); fileIn.value = ""; };
+dirMain.onchange = () => { addFiles([...dirMain.files], "main"); dirMain.value = ""; };
+dirCal.onchange = () => { addFiles([...dirCal.files], "cal"); dirCal.value = ""; };
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove("over")));
 document.addEventListener("dragover", e => e.preventDefault());
@@ -1395,6 +1417,7 @@ function yAxis(ctx, x, y, w, h, lo, hi, n=3){
 }
 // min/max 抽稀畫線（波形）
 function drawSeries(ctx, t, y, i0, i1, x0, x1, X, Y, H, lo, hi, color){
+  const breakGaps = $("showGaps").checked;
   ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath();
   const sx = X.w / (x1 - x0), sy = H / (hi - lo);
   const px = i => X.x + (t[i] - x0) * sx, py = v => Y + H - (v - lo) * sy;
@@ -1402,7 +1425,7 @@ function drawSeries(ctx, t, y, i0, i1, x0, x1, X, Y, H, lo, hi, color){
   const flush = () => { if (col < 0) return; ctx.lineTo(col, py(mn)); ctx.lineTo(col, py(mx)); };
   for (let i = i0; i < i1; i++){
     const v = y[i]; if (!Number.isFinite(v)) { flush(); col = -1; started = false; continue; }
-    if (t[i] - prevT > 1.5/FS && started){ flush(); col = -1; started = false; } // 掉包處斷線
+    if (breakGaps && t[i] - prevT > 1.5/FS && started){ flush(); col = -1; started = false; } // 顯示掉包時才斷線（否則直線帶過）
     prevT = t[i];
     const c = Math.floor(px(i));
     if (!started){ ctx.moveTo(px(i), py(v)); started = true; col = c; mn = mx = v; continue; }
@@ -1447,14 +1470,21 @@ function drawWave(){
   for (const p of panels){
     const H = ph * p.r;
     let [lo, hi] = rangeOf(p.ser.map(s=>s[0]), i0, i1);
-    // 用 0.5–99.5 百分位：帶通開頭暫態、原始資料偶發的單筆 0（封包錯誤）都不會把刻度撐爆
+    // 縱軸範圍：包含所有正常數值（波峰尖端一定完整畫出），只排除明顯離群的異常點
+    //   以 0.5–99.5 百分位寬度為基準，超出它 4 倍寬以外的點（例如封包錯誤突然掉到 0）才算異常；異常點一定標示
+    let outN = 0;
     { const v = [], st = Math.max(1, Math.floor((i1-i0)/3000));
       for (const [a] of p.ser) for (let i=i0;i<i1;i+=st) if (Number.isFinite(a[i])) v.push(a[i]);
       v.sort((a,b)=>a-b);
-      if (v.length > 20){ const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)], pad = (q9-q1)*.15 || Math.max(1, Math.abs(q9)*.01); lo = q1-pad; hi = q9+pad; } }
-    // 有點落在顯示範圍外（被百分位刻度略過的極端值）→ 一定要標出來，避免看圖的人以為沒有異常
-    let outN = 0;
-    for (const [a] of p.ser) for (let i=i0;i<i1;i++){ const v = a[i]; if (v < lo || v > hi) outN++; }
+      if (v.length > 20){
+        const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)];
+        const spread = Math.max(q9 - q1, Math.abs(q9) * 0.01, 1e-6), fLo = q1 - 4*spread, fHi = q9 + 4*spread;
+        let mn = Infinity, mx = -Infinity;
+        for (const [a] of p.ser) for (let i=i0;i<i1;i++){ const x = a[i]; if (!Number.isFinite(x)) continue;
+          if (x < fLo || x > fHi) { outN++; continue; } if (x < mn) mn = x; if (x > mx) mx = x; }
+        if (mx > mn){ const pad = (mx - mn) * .08; lo = mn - pad; hi = mx + pad; }
+        else { lo = mn - 1; hi = mx + 1; }
+      } }
     frame(ctx, X.x, y, X.w, H, "");
     yAxis(ctx, X.x, y, X.w, H, lo, hi, H > 300 ? 8 : H > 150 ? 5 : 3);
     ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, H); ctx.clip();
@@ -1466,7 +1496,7 @@ function drawWave(){
     ctx.restore();
     tagLabel(ctx, p.label, X.x + 8, y + 14);
     if (outN){
-      const t = `↕ ${outN} 點超出顯示範圍`; ctx.font = "600 11px " + FONT; const tw = ctx.measureText(t).width;
+      const t = `↕ ${outN} 個異常點（明顯離群）未畫在範圍內`; ctx.font = "600 11px " + FONT; const tw = ctx.measureText(t).width;
       ctx.fillStyle = css("--panel"); ctx.globalAlpha = .9; ctx.fillRect(X.x + X.w - tw - 12, y + 3, tw + 8, 16); ctx.globalAlpha = 1;
       ctx.fillStyle = css("--hold"); ctx.textAlign = "right"; ctx.fillText(t, X.x + X.w - 8, y + 15);
     }
