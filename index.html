@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VitalSign檔案回放</title>
+<meta name="description" content="ECG、PPG、SpO2 與 IMU 姿態的錄製檔回放與分析工具">
+<meta property="og:type" content="website">
+<meta property="og:title" content="VitalSign檔案回放">
+<meta property="og:description" content="ECG、PPG、SpO2 與 IMU 姿態的錄製檔回放與分析工具">
+<meta property="og:site_name" content="VitalSign">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="VitalSign檔案回放">
+<meta name="twitter:description" content="ECG、PPG、SpO2 與 IMU 姿態的錄製檔回放與分析工具">
 <style>
 :root{
   --bg:#f3f4f6; --panel:#ffffff; --panel2:#f8f9fb; --ink:#14181f; --muted:#667085; --faint:#98a2b3; --line:#e4e7ec; --grid:#eef0f3;
@@ -148,8 +156,14 @@ body:not(.loaded) .setup,body:not(.loaded) .grid,body:not(.loaded) #imuCard{disp
 #calStep.warn .stepsub{color:var(--hold)}
 .calat{display:none;margin-top:4px;font-size:12px}
 #calStep.has .calat{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
-#calStep.manual #calAutoTxt{text-decoration:line-through;color:var(--faint)}
-.calat input{width:78px;height:26px}
+.calsegs{display:grid;gap:3px;width:100%}
+.calseg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.calseg b{color:var(--ink);font-variant-numeric:tabular-nums;font-weight:600}
+.calseg .ok{color:var(--ok)} .calseg .warn{color:var(--hold)}
+.calseg input{width:78px;height:24px}
+.calseg .x{height:20px;padding:0 6px;font-size:11px;border-color:transparent;background:transparent;color:var(--faint)}
+.calseg .x:hover{color:var(--bad);border-color:var(--bad)}
+.calat input[type=number]{width:78px;height:26px}
 .settings{display:block;padding:0}
 .settings summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;white-space:nowrap}
 .settings:not([open]) summary{height:100%}
@@ -300,11 +314,10 @@ details.more .kv{margin-top:8px}
       <div class="stepbody"><div class="steplbl">校正 CSV <span class="opt">選填</span></div>
         <div class="stepsub" id="calInfo">從校正那一刻開始錄的檔案，上傳後會自動找到開始時間</div>
         <div class="calat" id="calAt">
-          <span id="calAutoTxt">第 <b class="num" id="calAutoT">--</b> 秒起使用（自動對齊）</span>
+          <div id="calSegs" class="calsegs"></div>
           <label class="chk" title="自動對齊結果不對時才需要"><input id="calManual" type="checkbox"> 手動對齊</label>
-          <label id="calManWrap" class="hide">從 <input id="calStart" class="num" type="number" step="0.1" min="0" disabled> 秒起使用</label>
         </div></div>
-      <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
+      <input id="calFile" type="file" accept=".csv,text/csv" multiple class="hide">
       <button id="calBtn" type="button" disabled>上傳</button>
       <button id="calClear" class="ghost" type="button" disabled>移除</button>
     </div>
@@ -1185,7 +1198,10 @@ const $ = id => document.getElementById(id);
 const FS = 256;
 const worker = new Worker(URL.createObjectURL(new Blob([$("alg-src").textContent, "\n", $("imu-src").textContent, "\n", $("worker-src").textContent], {type:"text/javascript"})));
 let D = null, RES = [], RES_T = null, fileName = "";
-let CAL = null, calText = null, calName = "", calStart = null, calAutoStart = null;   // 校正 CSV
+// 校正 CSV 可能有好幾段（_calibrated、_calibrated2…，按過重置再校正就會多一段），都和主 CSV 同一條時間軸
+let CAL_FILES = [];   // 這筆錄製要用的校正檔 [{name, text, demo}]
+let CALS = [];        // 對齊後的每一段 [{c, name, shown, start, autoStart, end, align, good, how, err}]，依開始時間排序
+let calRecv = 0;
 let winSec = 10, waveView = "all";   // 波形視窗秒數（連續值，滾輪/捏合平滑縮放）
 let cur = 0, playing = false, lastTs = 0;
 const FONT = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif';
@@ -1193,15 +1209,15 @@ const _css = new Map();
 const css = n => { let v = _css.get(n); if (v === undefined){ v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); _css.set(n, v); } return v; };
 // 文字沒變就不寫 DOM（避免每幀重排版）
 const txt = (id, s) => { const el = $(id); if (el.textContent !== s) el.textContent = s; };
-// 平滑動畫狀態：縱軸範圍、縮放
+// 平滑動畫狀態：縮放
 let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false;
 
-// ---------------- 檔案（可一次加入很多 CSV／整個資料夾；主檔與校正檔依檔名時間自動配對）
+// ---------------- 檔案（可一次加入很多 CSV／整個資料夾；主檔與校正檔自動配對）
 const drop = $("drop"), fileIn = $("file"), dirMain = $("dirMain"), dirCal = $("dirCal");
 const LIB = {mains: [], cals: []};
 LIB.dirs = {main: [], cal: []};   // 開過的資料夾（疊加，不會清掉之前的）
 let curEntry = null;
-// 檔名時間：主檔 data_2026-10-29_15-03-55_*.csv；校正檔 data_calibrated_20261029_150425.csv
+// 檔名時間：data_9A-B1_2026-10-30_09-28-36_*.csv、舊版校正檔 data_calibrated_20261029_150425.csv
 function nameTime(name){
   let m = name.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/) || name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
   return m ? new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]).getTime() : null;
@@ -1210,20 +1226,20 @@ const isCalName = n => /calibrat/i.test(n);
 // 校正檔第一列的 Time（= 主檔時間軸上的秒數）：只讀檔案開頭，不讀整個檔
 async function firstTime(f){
   try {
-    const head = (await f.slice(0, 8192).text()).replace(/^\uFEFF/, "").split(/\r?\n/);
+    const head = (await f.slice(0, 8192).text()).replace(/^﻿/, "").split(/\r?\n/);
     const ti = head[0].split(",").map(x => x.trim()).indexOf("Time");
     for (let k = 1; k < head.length - 1; k++){ const v = parseFloat((head[k].split(",")[ti] || "")); if (ti >= 0 && Number.isFinite(v)) return v; }
   } catch (e) {}
   return NaN;
 }
 const isMainName = n => /\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/.test(n) && !isCalName(n);
-// src = "main"（一般資料夾：換掉原本的主檔清單）、"cal"（校正資料夾：換掉原本的校正清單）、"mix"（依檔名分類，累加）
 // 檔案來自哪個資料夾（瀏覽器只給你選的那個資料夾名稱和底下的子資料夾，拿不到完整路徑）
 const relDir = f => { const parts = (f.webkitRelativePath || f._path || "").replace(/^\//, "").split("/"); parts.pop(); return parts.join(" / "); };
-const nameCell = m => m.demo ? `<span class="ln">範例<span class="ld">展示用資料</span></span>` : `<span class="ln" title="${esc((m.dir ? m.dir + " / " : "") + m.name)}">${esc(m.name)}<span class="ld">📁 ${m.dir ? esc(m.dir) : "直接選取的檔案"}</span></span>`;
+const nameCell = m => m.demo ? `<span class="ln">範例<span class="ld">展示用資料</span></span>`
+  : `<span class="ln" title="${esc((m.dir ? m.dir + " / " : "") + m.name)}">${esc(m.name)}<span class="ld">📁 ${m.dir ? esc(m.dir) : "直接選取的檔案"}</span></span>`;
+// src = "main"（一般資料夾）、"cal"（校正資料夾）、"mix"（依檔名分類）；一律疊加，同名同大小的檔案不重複加入
 async function addFiles(files, src = "mix"){
   const dir = files.length && files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "";
-  // 再開別的資料夾＝疊加到清單；同名同大小的檔案不會重複加入
   if (src === "main" && dir && !LIB.dirs.main.includes(dir)) LIB.dirs.main.push(dir);
   if (src === "cal" && dir && !LIB.dirs.cal.includes(dir)) LIB.dirs.cal.push(dir);
   let added = 0;
@@ -1239,18 +1255,17 @@ async function addFiles(files, src = "mix"){
   if (curEntry && !libView().includes(curEntry)) curEntry = null;
   if (!D && libView().length){ loadEntry(libView()[0]); return; }
   if (!curEntry && D && src === "main" && LIB.mains.length){ loadEntry(LIB.mains[0]); return; }
-  // 目前這筆剛配到校正檔（例如後開校正資料夾）→ 自動套上
-  if (curEntry && curEntry.cals[0] && calName !== curEntry.cals[0].name){ calName = curEntry.cals[0].name; calText = await curEntry.cals[0].file.text(); sendCalib(); }
+  // 目前這筆剛配到（或多配到）校正檔，例如後開校正資料夾 → 自動套上
+  if (curEntry && D && curEntry.cals.map(c => c.name).join("|") !== CAL_FILES.map(c => c.name).join("|")){
+    CAL_FILES = await Promise.all(curEntry.cals.map(c => c.file.text().then(text => ({name: c.name, text, demo: !!c.demo})))); sendCalibs(); }
 }
-// 配對規則：
-//  1) 校正檔的 Time 欄是主檔的時間軸（例如從 28.71 s 開始）→「校正檔名時間 − 第一列 Time」= 主檔開始時間，
-//     找開始時間在 ±15 秒內的主檔（就算兩台手機同時錄也不會配錯）
-//  2) 沒有 Time 可用時，退而求其次：開始時間早於校正檔、且最接近的主檔（6 小時內），標為「僅依檔名推測」
+// 配對規則（依序）：
+//  1) 新命名：去掉 [1]、_PENDING／_UPLOADED、_calibrated（或 _calibrated2…）後檔名完全相同 → 同一筆錄製（裝置代號也要一樣）
+//  2) 舊命名：校正檔的 Time 欄是主檔的時間軸 →「校正檔名時間 − 第一列 Time」= 主檔開始時間，±15 秒內
+//  3) 都不行：開始時間早於校正檔、且最接近的主檔（6 小時內），標為「僅依檔名推測」
 //  載入時還會再用 Time＋PPG 原始值逐筆確認，對不上會警告
-// 新命名：data_9A-B1_2026-10-30_09-28-36_PENDING.csv ↔ data_9A-B1_2026-10-30_09-28-36_calibrated_PENDING.csv
-//   去掉 _PENDING／_UPLOADED 和 _calibrated 後檔名完全相同 → 直接配對（裝置代號也要一樣，不會配到別台）
 const stripDup = n => n.replace(/\.csv$/i, "").replace(/\s*(\[\d+\]|\(\d+\))$/, "");
-const recKey = n => stripDup(n).replace(/_(PENDING|UPLOADED)$/i, "").replace(/_calibrated$/i, "");
+const recKey = n => stripDup(n).replace(/_(PENDING|UPLOADED)$/i, "").replace(/_calibrated\d*$/i, "");
 function pairLib(){
   LIB.mains.sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || a.name.localeCompare(b.name));
   for (const m of LIB.mains) m.cals = [];
@@ -1270,16 +1285,16 @@ function pairLib(){
     }
     if (best) best.cals.push(c); else LIB.unpaired.push(c);
   }
-  for (const m of LIB.mains) m.cals.sort((a, b) => a.t - b.t);
+  for (const m of LIB.mains) m.cals.sort((a, b) => (a.t ?? 0) - (b.t ?? 0) || a.name.localeCompare(b.name, undefined, {numeric: true}));
 }
-const fmtT = t => { if (t == null) return "（檔名無時間）"; const d = new Date(t), p = n => String(n).padStart(2, "0");
-  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
-const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // 清單上的每一列：一般 CSV，加上「找不到主檔的校正 CSV」（當成一筆錄製單獨畫）
 function libView(){
   const solo = LIB.unpaired.map(c => c.solo || (c.solo = {file: c.file, name: c.name, dir: c.dir, demo: c.demo, t: c.t, cals: [], solo: true, src: c}));
   return [...LIB.mains, ...solo].sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || (a.solo ? 1 : 0) - (b.solo ? 1 : 0) || a.name.localeCompare(b.name));
 }
+const fmtT = t => { if (t == null) return "（檔名無時間）"; const d = new Date(t), p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function renderLib(){
   const show = LIB.mains.length + LIB.cals.length > 1 || LIB.dirs.main.length > 0 || LIB.dirs.cal.length > 0;
   $("libCard").classList.toggle("hide", !show);
@@ -1293,7 +1308,7 @@ function renderLib(){
       `<button type="button" class="rm" data-rm="${i}" title="從清單移除（電腦裡的檔案不會被刪除）">移除</button></div>`;
     const c = m.cals[0], ok = c && (c.how === "time" || c.how === "key");
     const dt = !c ? null : Number.isFinite(c.T0) && c.T0 >= 1 ? Math.round(c.T0) : m.t != null && c.t != null && c.t > m.t ? Math.round((c.t - m.t) / 1000) : null;
-    const cal = c ? `<span class="lc${ok ? " ok" : " guess"}" title="${c.demo ? "範例" : esc((c.dir ? c.dir + " / " : "") + c.name)}">${ok ? "✓" : "？"} 校正：${c.demo ? "範例" : (c.dir ? `<span class="ldi">${esc(c.dir)} /</span> ` : "") + esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${ok ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}` +
+    const cal = c ? `<span class="lc${ok ? " ok" : " guess"}" title="${c.demo ? "範例" : esc(m.cals.map(x => (x.dir ? x.dir + " / " : "") + x.name).join("\n"))}">${ok ? "✓" : "？"} 校正：${c.demo ? "範例" : (c.dir ? `<span class="ldi">${esc(c.dir)} /</span> ` : "") + esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${ok ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，共 ${m.cals.length} 段` : ""}` +
                     `<button type="button" class="rm" data-rmc="${LIB.cals.indexOf(c)}" title="把這個校正 CSV 從清單移除（電腦裡的檔案不會被刪除）">✕</button></span>`
                   : `<span class="lc">無校正</span>`;
     return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span>${nameCell(m)}${cal}` +
@@ -1305,10 +1320,9 @@ function renderLib(){
 async function loadEntry(m){
   curEntry = m; renderLib();
   window.__solo = !!m.solo; window.__demo = !!m.demo; $("demoRm").classList.toggle("hide", !m.demo);
-  if (m.solo){ calName = ""; calText = null; loadFile(m.file); return; }
+  if (m.solo){ CAL_FILES = []; loadFile(m.file); return; }
   // 配對到的校正檔先讀好；主檔載入完成後會自動送去對齊（沒有校正就清掉上一筆的）
-  if (m.cals.length){ calName = m.cals[0].name; calText = await m.cals[0].file.text(); }
-  else { calName = ""; calText = null; }
+  CAL_FILES = await Promise.all(m.cals.map(c => c.file.text().then(text => ({name: c.name, text, demo: !!c.demo}))));
   loadFile(m.file);
 }
 // 從清單移除：只是不顯示，電腦裡的檔案完全不動（重新開資料夾就會再出現）
@@ -1322,7 +1336,7 @@ $("libRows").addEventListener("click", e => {
       if (m === curEntry) curEntry = null;            // 畫面上的資料保留，只是不在清單裡
     } else {
       const c = LIB.cals[+rm.dataset.rmc]; LIB.cals.splice(+rm.dataset.rmc, 1);
-      if (curEntry && curEntry.cals.includes(c) && CAL && calName === c.name) $("calClear").click();
+      if (CAL_FILES.some(f => f.name === c.name)){ CAL_FILES = CAL_FILES.filter(f => f.name !== c.name); sendCalibs(); }
     }
     pairLib(); renderLib(); return;
   }
@@ -1357,7 +1371,7 @@ $("demoRm").onclick = () => {
   curEntry = null; window.__demo = false;
   const V = libView();
   if (V.length){ loadEntry(V[0]); return; }
-  stop(); D = null; RES = []; CAL = null; calText = null; calName = ""; calStart = null; ECGA = null; ANN = [];
+  stop(); D = null; RES = []; CALS = []; CAL_FILES = []; ECGA = null; ANN = [];
   document.body.classList.remove("loaded"); $("demoRm").classList.add("hide");
   ["play", "seek", "rerun", "calBtn", "export"].forEach(id => { const el = $(id); if (el) el.disabled = true; });
   calUi(); annRender(); draw();
@@ -1375,7 +1389,7 @@ window.addEventListener("beforeunload", e => { if (D){ e.preventDefault(); e.ret
 const opts = () => ({profile:$("profile").value, settle:+$("settle").value||0, useEcg:$("useEcg").checked, resetGap:$("resetGap").checked});
 function loadFile(f){
   fileName = f.name; stop();
-  $("info").textContent = "讀取 " + f.name + " …"; showProg(0);
+  $("info").textContent = "讀取中 …"; showProg(0);
   const rd = new FileReader();
   rd.onload = () => worker.postMessage({type:"load", text: rd.result, opt: opts()});
   rd.readAsText(f);
@@ -1391,7 +1405,12 @@ $("rerun").onclick = () => { if (D){ showProg(0); worker.postMessage({type:"run"
 $("settle").addEventListener("change", () => $("rerun").click());
 
 // ---------------- 校正 CSV
-function sendCalib(){ calUi("處理中…"); worker.postMessage({type:"calib", text: calText}); }
+function sendCalibs(){
+  CALS = []; calRecv = 0; $("calManual").checked = false;
+  if (!CAL_FILES.length || !D){ calUi(); draw(); return; }
+  calUi("處理中…");
+  for (const f of CAL_FILES) worker.postMessage({type: "calib", text: f.text});   // worker 依序回覆
+}
 // 狀態與原因：用醫生看得懂的說法，但一定對應演算法當下真正判定的原因（不捏造）
 const REL = {UPDATE: {name: "可信", col: "--ok"}, HOLD: {name: "參考值", col: "--hold"}, NO_OUTPUT: {name: "無法判讀", col: "--bad"}, WARMUP: {name: "暖機中", col: "--warm"}};
 const REASON_MAP = [[/動作/, "身體晃動"], [/離身|DC/, "感測器可能未貼好"], [/心跳峰不明顯/, "脈搏訊號太弱"], [/不同步/, "光訊號不穩定"],
@@ -1418,33 +1437,59 @@ function relText(r){
   return "";
 }
 const CAL_HINT = "從校正那一刻開始錄的檔案，上傳後會自動找到開始時間";
-function calUi(msg, full, state){
-  $("calStart").disabled = $("calClear").disabled = $("calManual").disabled = !CAL;
-  $("calAutoT").textContent = calAutoStart != null ? calAutoStart.toFixed(2) : "--";
-  $("calManWrap").classList.toggle("hide", !$("calManual").checked);
-  $("calStep").classList.toggle("manual", !!CAL && $("calManual").checked);
-  $("calStart").value = CAL && calStart != null ? calStart.toFixed(2) : "";
-  $("calInfo").textContent = msg || (calText ? $("calInfo").textContent : window.__solo ? "這筆是校正 CSV 本身（沒有對應的一般 CSV），直接顯示它的資料" : CAL_HINT);
-  $("calInfo").title = full || "";
-  const st = $("calStep"); st.classList.toggle("has", !!CAL); st.classList.toggle("done", state === "ok"); st.classList.toggle("warn", state === "warn");
-  $("calBtn").textContent = CAL ? "換檔案" : "上傳校正 CSV"; $("calBtn").classList.toggle("primary", !CAL);
+const segLabel = (k, n) => n > 1 ? `校正 ${k + 1}` : "校正";
+function calUi(msg){
+  const has = CALS.some(g => !g.err), manual = has && $("calManual").checked, n = CALS.length;
+  $("calClear").disabled = $("calManual").disabled = !CAL_FILES.length;
+  const st = $("calStep"); st.classList.toggle("has", n > 0); st.classList.toggle("manual", manual);
+  const allGood = has && CALS.every(g => !g.err && g.good);
+  st.classList.toggle("done", !msg && allGood); st.classList.toggle("warn", !msg && n > 0 && !allGood);
+  let info = msg;
+  if (!info){
+    if (!CAL_FILES.length) info = window.__solo ? "這筆是校正 CSV 本身（沒有對應的一般 CSV），直接顯示它的資料" : CAL_HINT;
+    else if (allGood) info = n > 1 ? `✓ ${n} 段校正都已精準對齊（中間沒有校正的時段用主 CSV）` : `✓ ${CALS[0].shown} · ${CALS[0].how}`;
+    else info = "⚠ 有校正段對齊不確定，請確認秒數或勾「手動對齊」";
+  }
+  $("calInfo").textContent = info;
+  $("calInfo").title = CALS.map(g => g.full || "").join("\n");
+  const html = CALS.map((g, k) => {
+    const lbl = segLabel(k, n);
+    if (g.err) return `<div class="calseg"><span class="warn">⚠ ${esc(lbl)}：${esc(g.err)}</span></div>`;
+    const range = `<b>${g.start.toFixed(2)}</b>–<b>${g.end.toFixed(2)}</b> 秒`;
+    const tag = g.good ? `<span class="ok">✓ ${esc(g.how)}</span>` : `<span class="warn">⚠ ${esc(g.how || "對齊不確定")}</span>`;
+    const edit = manual ? ` 從 <input class="num" type="number" step="0.1" data-k="${k}" value="${g.start.toFixed(2)}"> 秒起` : "";
+    return `<div class="calseg"><span>${esc(lbl)}：</span>${range}${tag}${edit}${manual && Math.abs(g.start - g.autoStart) > 1e-6 ? `<span style="color:var(--faint)">（自動：${g.autoStart.toFixed(2)}）</span>` : ""}` +
+      `<button type="button" class="x" data-rmk="${k}" title="不用這一段校正">✕</button></div>`;
+  }).join("");
+  const box = $("calSegs"); if (box.dataset.h !== html){ box.innerHTML = html; box.dataset.h = html; }
+  $("calBtn").textContent = CAL_FILES.length ? "加入校正 CSV" : "上傳校正 CSV"; $("calBtn").classList.toggle("primary", !CAL_FILES.length);
 }
 $("calBtn").onclick = () => $("calFile").click();
+async function addCalFiles(files){
+  if (!D || !files.length) return;
+  for (const f of files) if (!CAL_FILES.some(x => x.name === f.name)) CAL_FILES.push({name: f.name, text: await f.text(), demo: false});
+  CAL_FILES.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+  sendCalibs();
+}
 { const st = $("calStep");
   ["dragenter","dragover"].forEach(ev => st.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); st.classList.add("over"); }));
   ["dragleave","drop"].forEach(ev => st.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); st.classList.remove("over"); }));
-  st.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (!f || !D) return; calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); }); }
-$("calFile").onchange = () => { const f = $("calFile").files[0]; if (!f || !D) return;
-  calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); $("calFile").value = ""; };
-// 預設用自動對齊；勾「手動對齊」才可以自己輸入秒數，取消勾選就回到自動對齊的秒數
+  st.addEventListener("drop", e => addCalFiles([...e.dataTransfer.files].filter(f => /\.csv$/i.test(f.name)))); }
+$("calFile").onchange = () => { addCalFiles([...$("calFile").files]); $("calFile").value = ""; };
+// 預設用自動對齊；勾「手動對齊」才可以改每一段的起始秒數，取消勾選就回到自動對齊
 $("calManual").addEventListener("change", () => {
-  if (!CAL) return;
-  if (!$("calManual").checked && calAutoStart != null) calStart = calAutoStart;
+  if (!$("calManual").checked) for (const g of CALS) if (!g.err){ g.start = g.autoStart; g.end = g.start + g.c.t[g.c.n - 1]; }
   calUi(); draw();
 });
-$("calStart").addEventListener("change", e => { if (!CAL) return; const v = parseFloat(e.target.value);
-  if (Number.isFinite(v)){ calStart = Math.max(tMin(), Math.min(tMax(), v)); e.target.value = calStart.toFixed(2); draw(); } });
-$("calClear").onclick = () => { CAL = null; calText = null; calStart = null; calUi(CAL_HINT); draw(); };
+$("calSegs").addEventListener("change", e => {
+  const k = e.target.dataset.k; if (k == null) return; const g = CALS[+k], v = parseFloat(e.target.value);
+  if (g && Number.isFinite(v)){ g.start = Math.max(tMin(), Math.min(tMax(), v)); g.end = g.start + g.c.t[g.c.n - 1]; calUi(); draw(); }
+});
+$("calSegs").addEventListener("click", e => {
+  const b = e.target.closest("[data-rmk]"); if (!b) return; const g = CALS[+b.dataset.rmk];
+  CAL_FILES = CAL_FILES.filter(f => f.name !== g.name); sendCalibs();
+});
+$("calClear").onclick = () => { CAL_FILES = []; CALS = []; calUi(); draw(); };
 
 function showProg(f){ $("prog").style.display = "block"; $("prog").firstChild.style.width = (100*f).toFixed(1)+"%"; }
 function hideProg(){ $("prog").style.display = "none"; }
@@ -1466,35 +1511,31 @@ worker.onmessage = e => {
     const dur = D.n/FS, mm = Math.floor(dur/60), ss = Math.round(dur - 60*mm);
     const metaShort = Object.entries(D.meta).map(([k,v]) => k === "Age" ? `${parseFloat(v)} 歲` : k === "Sex" ? ({Male:"男",Female:"女"}[v] || v) : v);
     $("info").textContent = [`${mm} 分 ${ss} 秒`, D.fmt === "new" ? `掉包 ${(100*lost/(D.n+lost)).toFixed(1)}%` : "舊版 CSV", ...metaShort].join(" · ");
-    $("info").title = s.split("\n").slice(1).join("\n");
+    $("info").title = window.__demo ? "" : s.split("\n").slice(1).join("\n");
     { const shown = window.__demo ? "範例" : fileName; $("fileName").textContent = shown; $("fileName").title = shown; }
     document.body.classList.add("loaded");
     $("resetGap").disabled = D.fmt !== "new";
     ["play","seek","rerun","calBtn"].forEach(id => $(id).disabled = false);
     $("calBtn").title = "";
-    RES = []; CAL = null; calStart = null;
-    if (calText) sendCalib(); else calUi();
+    RES = []; sendCalibs();
     draw();
   }
-  else if (m.type === "calib"){
-    CAL = m.c;
-    const a = CAL.align;
-    calStart = a ? D.t[Math.min(a.row, D.n-1)] : tMin();
-    calAutoStart = calStart; $("calManual").checked = false;
-    const calShown = window.__demo ? "範例校正資料" : calName;
-    let s = `${calShown}：${CAL.n} 樣本（${(CAL.n/FS).toFixed(1)} s）· `;
-    s += a ? `自動對齊到主 CSV 第 ${calStart.toFixed(2)} 秒（${a.method}${Number.isFinite(a.score) ? `，${a.method.includes("互相關") ? "相關" : "PPG 吻合"} ${a.score.toFixed(2)}` : ""}）`
-           : "找不到對應位置，先從 0 秒開始，請手動輸入秒數";
-    s += CAL.bias ? ` · GyroBias 取自第 ${CAL.biasRow+1} 筆` : " · 校正 CSV 沒有 GyroBias 欄，bias 自行估計";
-    const good = a && a.ok;
-    const how = !a ? "" : a.method.includes("PPG") && a.ok ? "精準對齊" : a.method.startsWith("依 Time") ? "依 Time 對齊" : "波形比對";
-    const short = !a ? `⚠ ${calShown}：找不到對應位置，請手動輸入秒數`
-      : good ? `✓ ${calShown} · ${how}，第 ${calStart.toFixed(2)} 秒起`
-      : a.method.startsWith("依 Time") ? `⚠ ${calShown} · Time 在第 ${calStart.toFixed(2)} 秒，但 PPG 對不上，可能不是同一次錄製`
-      : `⚠ ${calShown} · 對齊信心低，請確認秒數`;
-    calUi(short, s, good ? "ok" : "warn"); draw();
+  else if (m.type === "calib" || m.type === "calibError"){
+    const f = CAL_FILES[calRecv++]; if (!f || !D) return;
+    const shown = f.demo ? "範例校正資料" : f.name;
+    if (m.type === "calibError") CALS.push({name: f.name, shown, err: m.msg, start: Infinity});
+    else {
+      const c = m.c, a = c.align, start = a ? D.t[Math.min(a.row, D.n-1)] : tMin();
+      const good = !!(a && a.ok);
+      const how = !a ? "找不到對應位置" : a.method.includes("PPG") && a.ok ? "精準對齊" : a.method.startsWith("依 Time") ? (a.ok ? "依 Time 對齊" : "Time 對得上但 PPG 不同，可能不是同一次錄製") : (a.ok ? "波形比對" : "波形比對信心低");
+      let full = `${shown}：${c.n} 樣本（${(c.n/FS).toFixed(1)} s）· `;
+      full += a ? `對齊到主 CSV 第 ${start.toFixed(2)} 秒（${a.method}${Number.isFinite(a.score) ? `，${a.method.includes("互相關") ? "相關" : "PPG 吻合"} ${a.score.toFixed(2)}` : ""}）` : "找不到對應位置";
+      full += c.bias ? ` · GyroBias 取自第 ${c.biasRow+1} 筆` : " · 沒有 GyroBias 欄，bias 自行估計";
+      CALS.push({c, name: f.name, shown, start, autoStart: start, end: start + c.t[c.n - 1], align: a, good, how, full});
+    }
+    if (calRecv >= CAL_FILES.length){ CALS.sort((x, y) => x.start - y.start); calUi(); }
+    draw();
   }
-  else if (m.type === "calibError"){ CAL = null; calStart = null; calUi("⚠ " + m.msg, "", "warn"); draw(); }
   else if (m.type === "results"){
     hideProg(); RES = m.res; resVer++;
     RES_T = Float64Array.from(RES, r => D.t[Math.max(0, r.endIdx)]);
@@ -2229,9 +2270,12 @@ function drawImu(){
   const im = D && D.imu;
   // 目前時間落在校正 CSV 範圍內 → 用校正 CSV；否則用主 CSV
   let src = null;
-  if (CAL && calStart != null && cur >= calStart && cur - calStart <= CAL.t[CAL.n-1] + 1/FS){
-    const j = Math.min(Math.max(lowerBound(CAL.t, cur - calStart), 0), CAL.n - 1);
-    src = {cal: true, Q: CAL.Q, valid: CAL.valid, i: j, acc: CAL.acc, gyro: CAL.gyro, bias: CAL.bias, biasRow: CAL.biasRow, calibDoneTime: CAL.calibDoneTime};
+  const segs = CALS.filter(g => !g.err);
+  let seg = null, segK = -1;
+  segs.forEach((g, k) => { if (cur >= g.start && cur <= g.end + 1/FS){ seg = g; segK = k; } });   // 重疊時用較晚開始的那段
+  if (seg){
+    const C = seg.c, j = Math.min(Math.max(lowerBound(C.t, cur - seg.start), 0), C.n - 1);
+    src = {cal: true, Q: C.Q, valid: C.valid, i: j, acc: C.acc, gyro: C.gyro, bias: C.bias, biasRow: C.biasRow, calibDoneTime: C.calibDoneTime};
   } else if (im){
     const i = Math.min(Math.max(lowerBound(D.t, cur), 0), D.n - 1);   // 同 Python searchsorted
     const c = D.cols;
@@ -2242,9 +2286,13 @@ function drawImu(){
   GL3.render(v, q);
   const deg = r => (Math.round(r*180/Math.PI) || 0) + "°";
   const [w, x, y, z] = q;
-  const from = src.cal ? "校正 CSV" : (CAL ? "主 CSV（校正開始前）" : "主 CSV");
+  const from = src.cal ? (segs.length > 1 ? `校正 CSV（第 ${segK + 1} 段）` : "校正 CSV")
+    : !segs.length ? "主 CSV"
+    : cur < segs[0].start ? "主 CSV（校正開始前）"
+    : cur > segs[segs.length - 1].end ? "主 CSV（校正段之後）"
+    : "主 CSV（重置後、尚未重新校正）";
   txt("imState", (v ? "" : "校正中… · ") + "資料來源：" + from);
-  txt("imBias", src.bias ? `${src.cal ? "校正 CSV" : "CSV"} 第 ${src.biasRow+1} 筆：(${src.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` +
+  txt("imBias", src.bias ? `${src.cal ? "校正 CSV" : "主 CSV"} 第 ${src.biasRow+1} 筆：(${src.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` +
     (!src.cal && src.biasRow > 0 ? "（一般 CSV：訊號未套用兩點校正 qCal，姿態為感測器座標，僅供參考）" : "") :
     (src.calibDoneTime != null ? `自行估計（完成於 t=${src.calibDoneTime.toFixed(2)} s）` : "自行估計（靜止樣本不足，bias 從未有效）"));
   txt("imQ", q.map(a => a.toFixed(4)).join(", "));
