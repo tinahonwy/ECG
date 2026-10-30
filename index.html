@@ -1245,7 +1245,8 @@ async function addFiles(files, src = "mix"){
 //  載入時還會再用 Time＋PPG 原始值逐筆確認，對不上會警告
 // 新命名：data_9A-B1_2026-10-30_09-28-36_PENDING.csv ↔ data_9A-B1_2026-10-30_09-28-36_calibrated_PENDING.csv
 //   去掉 _PENDING／_UPLOADED 和 _calibrated 後檔名完全相同 → 直接配對（裝置代號也要一樣，不會配到別台）
-const recKey = n => n.replace(/\.csv$/i, "").replace(/_(PENDING|UPLOADED)$/i, "").replace(/_calibrated$/i, "");
+const stripDup = n => n.replace(/\.csv$/i, "").replace(/\s*(\[\d+\]|\(\d+\))$/, "");
+const recKey = n => stripDup(n).replace(/_(PENDING|UPLOADED)$/i, "").replace(/_calibrated$/i, "");
 function pairLib(){
   LIB.mains.sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || a.name.localeCompare(b.name));
   for (const m of LIB.mains) m.cals = [];
@@ -1936,7 +1937,7 @@ const annTypeOf = k => ANN_TYPES.find(x => x[0] === k) || ANN_TYPES[ANN_TYPES.le
 $("annType").innerHTML = ANN_TYPES.map(([k, n]) => `<option value="${k}">${n}</option>`).join("");
 let ANN = [], annEditing = null, annDir = null, annDirOk = false, annSaveMsg = "", annSaveTimer = null;
 const annMem = {};
-const annBase = () => fileName.replace(/\.csv$/i, "").replace(/_(PENDING|UPLOADED)$/i, "");
+const annBase = () => fileName.replace(/\.csv$/i, "").replace(/\s*(\[\d+\]|\(\d+\))$/, "").replace(/_(PENDING|UPLOADED)$/i, "");
 const annFileName = () => annBase() + "_annotations.csv";
 const fsOK = typeof window.showDirectoryPicker === "function";
 const escA = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -2241,6 +2242,16 @@ function drawNow(){
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
 }
 draw();
+// ---------------- 範例資料（給廠商展示）：和 index.html 放在同一個資料夾，打開網址就自動載入
+const DEMO_FILES = ["data_13-EB_2026-10-30_10-18-00_PENDING[1].csv", "data_13-EB_2026-10-30_10-18-00_calibrated_PENDING[1].csv"];
+if (location.protocol !== "file:"){
+  Promise.all(DEMO_FILES.map(n => fetch(encodeURIComponent(n)).then(r => r.ok ? r.blob() : null).catch(() => null)))
+    .then(blobs => {
+      const files = [];
+      blobs.forEach((b, i) => { if (!b) return; const f = new File([b], DEMO_FILES[i], {type: "text/csv"}); f._path = "範例/" + DEMO_FILES[i]; files.push(f); });
+      if (files.length) addFiles(files, "mix");
+    });
+}
 })();
 </script>
 </body>
