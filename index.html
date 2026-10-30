@@ -1193,7 +1193,7 @@ let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false;
 // ---------------- 檔案（可一次加入很多 CSV／整個資料夾；主檔與校正檔依檔名時間自動配對）
 const drop = $("drop"), fileIn = $("file"), dirMain = $("dirMain"), dirCal = $("dirCal");
 const LIB = {mains: [], cals: []};
-LIB.dirs = {main: "", cal: ""};
+LIB.dirs = {main: [], cal: []};   // 開過的資料夾（疊加，不會清掉之前的）
 let curEntry = null;
 // 檔名時間：主檔 data_2026-10-29_15-03-55_*.csv；校正檔 data_calibrated_20261029_150425.csv
 function nameTime(name){
@@ -1214,8 +1214,9 @@ const isMainName = n => /\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/.test(n) && !isCalN
 // src = "main"（一般資料夾：換掉原本的主檔清單）、"cal"（校正資料夾：換掉原本的校正清單）、"mix"（依檔名分類，累加）
 async function addFiles(files, src = "mix"){
   const dir = files.length && files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "";
-  if (src === "main"){ LIB.mains = []; LIB.dirs.main = dir; }
-  if (src === "cal"){ LIB.cals = []; LIB.dirs.cal = dir; }
+  // 再開別的資料夾＝疊加到清單；同名同大小的檔案不會重複加入
+  if (src === "main" && dir && !LIB.dirs.main.includes(dir)) LIB.dirs.main.push(dir);
+  if (src === "cal" && dir && !LIB.dirs.cal.includes(dir)) LIB.dirs.cal.push(dir);
   let added = 0;
   for (const f of files){
     if (!/\.csv$/i.test(f.name)) continue;
@@ -1270,11 +1271,11 @@ function libView(){
   return [...LIB.mains, ...solo].sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || (a.solo ? 1 : 0) - (b.solo ? 1 : 0) || a.name.localeCompare(b.name));
 }
 function renderLib(){
-  const show = LIB.mains.length + LIB.cals.length > 1 || !!LIB.dirs.main || !!LIB.dirs.cal;
+  const show = LIB.mains.length + LIB.cals.length > 1 || LIB.dirs.main.length > 0 || LIB.dirs.cal.length > 0;
   $("libCard").classList.toggle("hide", !show);
   const nCal = LIB.mains.filter(m => m.cals.length).length;
   $("libSum").textContent = `${LIB.mains.length} 筆錄製 · ${nCal} 筆有校正` + (LIB.unpaired.length ? ` · ${LIB.unpaired.length} 個校正 CSV 單獨顯示` : "");
-  $("libDirs").textContent = `一般 CSV 資料夾：${LIB.dirs.main || "（未開啟）"}（${LIB.mains.length} 個）　·　校正 CSV 資料夾：${LIB.dirs.cal || "（未開啟）"}（${LIB.cals.length} 個）`;
+  $("libDirs").textContent = `一般 CSV 資料夾：${LIB.dirs.main.join("、") || "（未開啟）"}（共 ${LIB.mains.length} 個）　·　校正 CSV 資料夾：${LIB.dirs.cal.join("、") || "（未開啟）"}（共 ${LIB.cals.length} 個）`;
   const V = libView();
   $("libRows").innerHTML = V.map((m, i) => {
     if (m.solo) return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>` +
