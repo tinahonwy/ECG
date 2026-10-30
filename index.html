@@ -1226,24 +1226,28 @@ async function addFiles(files, src = "mix"){
   pairLib(); renderLib();
   if (!added && src === "mix") return;
   if (src !== "mix" && !files.some(f => /\.csv$/i.test(f.name))) alert(`資料夾「${dir}」裡沒有 CSV 檔`);
-  if (curEntry && !LIB.mains.includes(curEntry)) curEntry = null;
-  if (!D && LIB.mains.length){ loadEntry(LIB.mains[0]); return; }
+  if (curEntry && !libView().includes(curEntry)) curEntry = null;
+  if (!D && libView().length){ loadEntry(libView()[0]); return; }
   if (!curEntry && D && src === "main" && LIB.mains.length){ loadEntry(LIB.mains[0]); return; }
   // 目前這筆剛配到校正檔（例如後開校正資料夾）→ 自動套上
   if (curEntry && curEntry.cals[0] && calName !== curEntry.cals[0].name){ calName = curEntry.cals[0].name; calText = await curEntry.cals[0].file.text(); sendCalib(); }
-  else if (!LIB.mains.length && LIB.cals.length && !D) $("drop").querySelector("strong").textContent = "只有校正 CSV，請再加入主要 CSV";
 }
 // 配對規則：
 //  1) 校正檔的 Time 欄是主檔的時間軸（例如從 28.71 s 開始）→「校正檔名時間 − 第一列 Time」= 主檔開始時間，
 //     找開始時間在 ±15 秒內的主檔（就算兩台手機同時錄也不會配錯）
 //  2) 沒有 Time 可用時，退而求其次：開始時間早於校正檔、且最接近的主檔（6 小時內），標為「僅依檔名推測」
 //  載入時還會再用 Time＋PPG 原始值逐筆確認，對不上會警告
+// 新命名：data_9A-B1_2026-10-30_09-28-36_PENDING.csv ↔ data_9A-B1_2026-10-30_09-28-36_calibrated_PENDING.csv
+//   去掉 _PENDING／_UPLOADED 和 _calibrated 後檔名完全相同 → 直接配對（裝置代號也要一樣，不會配到別台）
+const recKey = n => n.replace(/\.csv$/i, "").replace(/_(PENDING|UPLOADED)$/i, "").replace(/_calibrated$/i, "");
 function pairLib(){
   LIB.mains.sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || a.name.localeCompare(b.name));
   for (const m of LIB.mains) m.cals = [];
   LIB.unpaired = [];
   for (const c of LIB.cals){
     let best = null; c.how = "";
+    const same = LIB.mains.filter(m => recKey(m.name) === recKey(c.name));
+    if (same.length){ c.how = "key"; for (const m of same) m.cals.push(c); continue; }
     if (c.t != null && Number.isFinite(c.T0) && c.T0 >= 0){
       const target = c.t - c.T0 * 1000;
       for (const m of LIB.mains) if (m.t != null && Math.abs(m.t - target) <= 15000 && (!best || Math.abs(m.t - target) < Math.abs(best.t - target))) best = m;
@@ -1260,25 +1264,37 @@ function pairLib(){
 const fmtT = t => { if (t == null) return "（檔名無時間）"; const d = new Date(t), p = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// 清單上的每一列：一般 CSV，加上「找不到主檔的校正 CSV」（當成一筆錄製單獨畫）
+function libView(){
+  const solo = LIB.unpaired.map(c => c.solo || (c.solo = {file: c.file, name: c.name, t: c.t, cals: [], solo: true, src: c}));
+  return [...LIB.mains, ...solo].sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || (a.solo ? 1 : 0) - (b.solo ? 1 : 0) || a.name.localeCompare(b.name));
+}
 function renderLib(){
   const show = LIB.mains.length + LIB.cals.length > 1 || !!LIB.dirs.main || !!LIB.dirs.cal;
   $("libCard").classList.toggle("hide", !show);
   const nCal = LIB.mains.filter(m => m.cals.length).length;
-  $("libSum").textContent = `${LIB.mains.length} 筆錄製 · ${nCal} 筆有校正`;
+  $("libSum").textContent = `${LIB.mains.length} 筆錄製 · ${nCal} 筆有校正` + (LIB.unpaired.length ? ` · ${LIB.unpaired.length} 個校正 CSV 單獨顯示` : "");
   $("libDirs").textContent = `一般 CSV 資料夾：${LIB.dirs.main || "（未開啟）"}（${LIB.mains.length} 個）　·　校正 CSV 資料夾：${LIB.dirs.cal || "（未開啟）"}（${LIB.cals.length} 個）`;
-  $("libRows").innerHTML = LIB.mains.map((m, i) => {
-    const c = m.cals[0], dt = c && m.t != null ? Math.round((c.t - m.t) / 1000) : null;
-    const cal = c ? `<span class="lc${c.how === "time" ? " ok" : " guess"}" title="${esc(c.name)}">${c.how === "time" ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${c.how === "time" ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}` +
+  const V = libView();
+  $("libRows").innerHTML = V.map((m, i) => {
+    if (m.solo) return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>` +
+      `<span class="lc guess">只有校正 CSV（沒有對應的一般 CSV）· 單獨顯示</span>` +
+      `<button type="button" class="rm" data-rm="${i}" title="從清單移除（電腦裡的檔案不會被刪除）">移除</button></div>`;
+    const c = m.cals[0], ok = c && (c.how === "time" || c.how === "key");
+    const dt = !c ? null : Number.isFinite(c.T0) && c.T0 >= 1 ? Math.round(c.T0) : m.t != null && c.t != null && c.t > m.t ? Math.round((c.t - m.t) / 1000) : null;
+    const cal = c ? `<span class="lc${ok ? " ok" : " guess"}" title="${esc(c.name)}">${ok ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${ok ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}` +
                     `<button type="button" class="rm" data-rmc="${LIB.cals.indexOf(c)}" title="把這個校正 CSV 從清單移除（電腦裡的檔案不會被刪除）">✕</button></span>`
                   : `<span class="lc">無校正</span>`;
     return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>${cal}` +
            `<button type="button" class="rm" data-rm="${i}" title="從清單移除（電腦裡的檔案不會被刪除）">移除</button></div>`;
-  }).join("") + (LIB.unpaired.length ? `<div class="libnote">找不到對應主檔的校正 CSV（它的開始時間對不上任何一筆主檔）：${LIB.unpaired.map(c => esc(c.name)).join("、")}</div>` : "");
-  const i = LIB.mains.indexOf(curEntry);
-  $("libPrev").disabled = i <= 0; $("libNext").disabled = i < 0 || i >= LIB.mains.length - 1;
+  }).join("");
+  const i = V.indexOf(curEntry);
+  $("libPrev").disabled = i <= 0; $("libNext").disabled = i < 0 || i >= V.length - 1;
 }
 async function loadEntry(m){
   curEntry = m; renderLib();
+  window.__solo = !!m.solo;
+  if (m.solo){ calName = ""; calText = null; loadFile(m.file); return; }
   // 配對到的校正檔先讀好；主檔載入完成後會自動送去對齊（沒有校正就清掉上一筆的）
   if (m.cals.length){ calName = m.cals[0].name; calText = await m.cals[0].file.text(); }
   else { calName = ""; calText = null; }
@@ -1290,7 +1306,8 @@ $("libRows").addEventListener("click", e => {
   if (rm){
     e.stopPropagation();
     if (rm.dataset.rm != null){
-      const m = LIB.mains[+rm.dataset.rm]; LIB.mains.splice(+rm.dataset.rm, 1);
+      const m = libView()[+rm.dataset.rm];
+      if (m.solo) LIB.cals.splice(LIB.cals.indexOf(m.src), 1); else LIB.mains.splice(LIB.mains.indexOf(m), 1);
       if (m === curEntry) curEntry = null;            // 畫面上的資料保留，只是不在清單裡
     } else {
       const c = LIB.cals[+rm.dataset.rmc]; LIB.cals.splice(+rm.dataset.rmc, 1);
@@ -1298,10 +1315,10 @@ $("libRows").addEventListener("click", e => {
     }
     pairLib(); renderLib(); return;
   }
-  const r = e.target.closest(".librow"); if (r) loadEntry(LIB.mains[+r.dataset.i]);
+  const r = e.target.closest(".librow"); if (r) loadEntry(libView()[+r.dataset.i]);
 });
-$("libPrev").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i > 0) loadEntry(LIB.mains[i-1]); };
-$("libNext").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i >= 0 && i < LIB.mains.length - 1) loadEntry(LIB.mains[i+1]); };
+$("libPrev").onclick = () => { const V = libView(), i = V.indexOf(curEntry); if (i > 0) loadEntry(V[i-1]); };
+$("libNext").onclick = () => { const V = libView(), i = V.indexOf(curEntry); if (i >= 0 && i < V.length - 1) loadEntry(V[i+1]); };
 // 拖進來的資料夾要逐層讀出檔案
 async function filesFromDrop(dt){
   const entries = [...(dt.items || [])].map(it => it.webkitGetAsEntry ? it.webkitGetAsEntry() : null).filter(Boolean);
@@ -1381,7 +1398,7 @@ const CAL_HINT = "從校正那一刻開始錄的檔案，上傳後會自動找�
 function calUi(msg, full, state){
   $("calStart").disabled = $("calClear").disabled = !CAL;
   $("calStart").value = CAL && calStart != null ? calStart.toFixed(2) : "";
-  $("calInfo").textContent = msg || (calText ? $("calInfo").textContent : CAL_HINT);
+  $("calInfo").textContent = msg || (calText ? $("calInfo").textContent : window.__solo ? "這筆是校正 CSV 本身（沒有對應的一般 CSV），直接顯示它的資料" : CAL_HINT);
   $("calInfo").title = full || "";
   const st = $("calStep"); st.classList.toggle("has", !!CAL); st.classList.toggle("done", state === "ok"); st.classList.toggle("warn", state === "warn");
   $("calBtn").textContent = CAL ? "換檔案" : "上傳校正 CSV"; $("calBtn").classList.toggle("primary", !CAL);
