@@ -147,7 +147,8 @@ body:not(.loaded) .setup,body:not(.loaded) .grid,body:not(.loaded) #imuCard{disp
 .stepsub{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #calStep.warn .stepsub{color:var(--hold)}
 .calat{display:none;margin-top:4px;font-size:12px}
-#calStep.has .calat{display:inline-flex}
+#calStep.has .calat{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+#calStep.manual #calAutoTxt{text-decoration:line-through;color:var(--faint)}
 .calat input{width:78px;height:26px}
 .settings{display:block;padding:0}
 .settings summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;white-space:nowrap}
@@ -298,7 +299,11 @@ details.more .kv{margin-top:8px}
       <div class="stepn">2</div>
       <div class="stepbody"><div class="steplbl">校正 CSV <span class="opt">選填</span></div>
         <div class="stepsub" id="calInfo">從校正那一刻開始錄的檔案，上傳後會自動找到開始時間</div>
-        <label class="calat" id="calAt">從 <input id="calStart" class="num" type="number" step="0.1" min="0" disabled> 秒起使用</label></div>
+        <div class="calat" id="calAt">
+          <span id="calAutoTxt">第 <b class="num" id="calAutoT">--</b> 秒起使用（自動對齊）</span>
+          <label class="chk" title="自動對齊結果不對時才需要"><input id="calManual" type="checkbox"> 手動對齊</label>
+          <label id="calManWrap" class="hide">從 <input id="calStart" class="num" type="number" step="0.1" min="0" disabled> 秒起使用</label>
+        </div></div>
       <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
       <button id="calBtn" type="button" disabled>上傳</button>
       <button id="calClear" class="ghost" type="button" disabled>移除</button>
@@ -345,10 +350,10 @@ details.more .kv{margin-top:8px}
         </div>
         <div class="strow"><div id="roStatus"></div><div class="reason" id="roReason"></div></div>
         <div class="formula">
-          <label class="flbl">公式 <select id="profile">
-            <option value="CHEST_BODY">胸口裝置-貼胸口</option>
-            <option value="CHEST">胸口裝置-手指貼</option>
-            <option value="FINGER">手指</option></select></label>
+          <label class="flbl">校正模式 <select id="profile">
+            <option value="FINGER">裝置A</option>
+            <option value="CHEST">裝置B（手指）</option>
+            <option value="CHEST_BODY" selected>裝置B（胸口）</option></select></label>
           <div class="ftext num" id="formulaText"></div>
         </div>
       </div>
@@ -493,9 +498,9 @@ const CS = (() => {
     [1.0, -2.0, 1.0, 1.0, -1.861462139896686, 0.8796977999256663]];
 
   const PROFILES = {
-    FINGER: { label: "手指", a: 6.2357, b: -36.1546, c: 111.8910, rOffset: 0.01, rMax: 1.0, ppgLowHr: true },
-    CHEST: { label: "胸口裝置-手指貼", a: 1.17638, b: -15.7576, c: 112.2532, rOffset: 0.0, rMax: 3.0, ppgLowHr: true },
-    CHEST_BODY: { label: "胸口裝置-貼胸口", a: 2.3970, b: -22.4159, c: 108.8910, rOffset: 0.0, rMax: 3.0, ppgLowHr: false },
+    FINGER: { label: "裝置A", a: 6.2357, b: -36.1546, c: 111.8910, rOffset: 0.01, rMax: 1.0, ppgLowHr: true },
+    CHEST: { label: "裝置B（手指）", a: 1.17638, b: -15.7576, c: 112.2532, rOffset: 0.0, rMax: 3.0, ppgLowHr: true },
+    CHEST_BODY: { label: "裝置B（胸口）", a: 2.3970, b: -22.4159, c: 108.8910, rOffset: 0.0, rMax: 3.0, ppgLowHr: false },
   };
   const calibrate = (p, r) => { const rc = r - p.rOffset; return p.a * rc * rc + p.b * rc + p.c; };
 
@@ -1180,7 +1185,7 @@ const $ = id => document.getElementById(id);
 const FS = 256;
 const worker = new Worker(URL.createObjectURL(new Blob([$("alg-src").textContent, "\n", $("imu-src").textContent, "\n", $("worker-src").textContent], {type:"text/javascript"})));
 let D = null, RES = [], RES_T = null, fileName = "";
-let CAL = null, calText = null, calName = "", calStart = null;   // 校正 CSV
+let CAL = null, calText = null, calName = "", calStart = null, calAutoStart = null;   // 校正 CSV
 let winSec = 10, waveView = "all";   // 波形視窗秒數（連續值，滾輪/捏合平滑縮放）
 let cur = 0, playing = false, lastTs = 0;
 const FONT = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif';
@@ -1414,7 +1419,10 @@ function relText(r){
 }
 const CAL_HINT = "從校正那一刻開始錄的檔案，上傳後會自動找到開始時間";
 function calUi(msg, full, state){
-  $("calStart").disabled = $("calClear").disabled = !CAL;
+  $("calStart").disabled = $("calClear").disabled = $("calManual").disabled = !CAL;
+  $("calAutoT").textContent = calAutoStart != null ? calAutoStart.toFixed(2) : "--";
+  $("calManWrap").classList.toggle("hide", !$("calManual").checked);
+  $("calStep").classList.toggle("manual", !!CAL && $("calManual").checked);
   $("calStart").value = CAL && calStart != null ? calStart.toFixed(2) : "";
   $("calInfo").textContent = msg || (calText ? $("calInfo").textContent : window.__solo ? "這筆是校正 CSV 本身（沒有對應的一般 CSV），直接顯示它的資料" : CAL_HINT);
   $("calInfo").title = full || "";
@@ -1428,6 +1436,12 @@ $("calBtn").onclick = () => $("calFile").click();
   st.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (!f || !D) return; calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); }); }
 $("calFile").onchange = () => { const f = $("calFile").files[0]; if (!f || !D) return;
   calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); $("calFile").value = ""; };
+// 預設用自動對齊；勾「手動對齊」才可以自己輸入秒數，取消勾選就回到自動對齊的秒數
+$("calManual").addEventListener("change", () => {
+  if (!CAL) return;
+  if (!$("calManual").checked && calAutoStart != null) calStart = calAutoStart;
+  calUi(); draw();
+});
 $("calStart").addEventListener("change", e => { if (!CAL) return; const v = parseFloat(e.target.value);
   if (Number.isFinite(v)){ calStart = Math.max(tMin(), Math.min(tMax(), v)); e.target.value = calStart.toFixed(2); draw(); } });
 $("calClear").onclick = () => { CAL = null; calText = null; calStart = null; calUi(CAL_HINT); draw(); };
@@ -1466,6 +1480,7 @@ worker.onmessage = e => {
     CAL = m.c;
     const a = CAL.align;
     calStart = a ? D.t[Math.min(a.row, D.n-1)] : tMin();
+    calAutoStart = calStart; $("calManual").checked = false;
     const calShown = window.__demo ? "範例校正資料" : calName;
     let s = `${calShown}：${CAL.n} 樣本（${(CAL.n/FS).toFixed(1)} s）· `;
     s += a ? `自動對齊到主 CSV 第 ${calStart.toFixed(2)} 秒（${a.method}${Number.isFinite(a.score) ? `，${a.method.includes("互相關") ? "相關" : "PPG 吻合"} ${a.score.toFixed(2)}` : ""}）`
