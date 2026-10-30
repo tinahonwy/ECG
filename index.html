@@ -253,6 +253,8 @@ details.more .kv{margin-top:8px}
 .annempty{font-size:12px;color:var(--faint)}
 .annio{margin-top:10px;font-size:11.5px;color:var(--faint)}
 .annio a{color:var(--muted)}
+.librow .ln .ld{display:block;font-size:11px;font-weight:400;color:var(--faint);overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.librow .ldi{color:var(--faint)}
 </style>
 </head>
 <body>
@@ -1212,6 +1214,9 @@ async function firstTime(f){
 }
 const isMainName = n => /\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/.test(n) && !isCalName(n);
 // src = "main"（一般資料夾：換掉原本的主檔清單）、"cal"（校正資料夾：換掉原本的校正清單）、"mix"（依檔名分類，累加）
+// 檔案來自哪個資料夾（瀏覽器只給你選的那個資料夾名稱和底下的子資料夾，拿不到完整路徑）
+const relDir = f => { const parts = (f.webkitRelativePath || f._path || "").replace(/^\//, "").split("/"); parts.pop(); return parts.join(" / "); };
+const nameCell = m => `<span class="ln" title="${esc((m.dir ? m.dir + " / " : "") + m.name)}">${esc(m.name)}<span class="ld">📁 ${m.dir ? esc(m.dir) : "直接選取的檔案"}</span></span>`;
 async function addFiles(files, src = "mix"){
   const dir = files.length && files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "";
   // 再開別的資料夾＝疊加到清單；同名同大小的檔案不會重複加入
@@ -1222,7 +1227,7 @@ async function addFiles(files, src = "mix"){
     if (!/\.csv$/i.test(f.name)) continue;
     const cal = src === "cal" ? !isMainName(f.name) : isCalName(f.name), list = cal ? LIB.cals : LIB.mains;
     if (list.some(x => x.file.name === f.name && x.file.size === f.size)) continue;
-    list.push({file: f, name: f.name, t: nameTime(f.name), cals: [], T0: cal ? await firstTime(f) : NaN}); added++;
+    list.push({file: f, name: f.name, dir: relDir(f), t: nameTime(f.name), cals: [], T0: cal ? await firstTime(f) : NaN}); added++;
   }
   pairLib(); renderLib();
   if (!added && src === "mix") return;
@@ -1267,7 +1272,7 @@ const fmtT = t => { if (t == null) return "（檔名無時間）"; const d = new
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // 清單上的每一列：一般 CSV，加上「找不到主檔的校正 CSV」（當成一筆錄製單獨畫）
 function libView(){
-  const solo = LIB.unpaired.map(c => c.solo || (c.solo = {file: c.file, name: c.name, t: c.t, cals: [], solo: true, src: c}));
+  const solo = LIB.unpaired.map(c => c.solo || (c.solo = {file: c.file, name: c.name, dir: c.dir, t: c.t, cals: [], solo: true, src: c}));
   return [...LIB.mains, ...solo].sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || (a.solo ? 1 : 0) - (b.solo ? 1 : 0) || a.name.localeCompare(b.name));
 }
 function renderLib(){
@@ -1278,15 +1283,15 @@ function renderLib(){
   $("libDirs").textContent = `一般 CSV 資料夾：${LIB.dirs.main.join("、") || "（未開啟）"}（共 ${LIB.mains.length} 個）　·　校正 CSV 資料夾：${LIB.dirs.cal.join("、") || "（未開啟）"}（共 ${LIB.cals.length} 個）`;
   const V = libView();
   $("libRows").innerHTML = V.map((m, i) => {
-    if (m.solo) return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>` +
+    if (m.solo) return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span>${nameCell(m)}` +
       `<span class="lc guess">只有校正 CSV（沒有對應的一般 CSV）· 單獨顯示</span>` +
       `<button type="button" class="rm" data-rm="${i}" title="從清單移除（電腦裡的檔案不會被刪除）">移除</button></div>`;
     const c = m.cals[0], ok = c && (c.how === "time" || c.how === "key");
     const dt = !c ? null : Number.isFinite(c.T0) && c.T0 >= 1 ? Math.round(c.T0) : m.t != null && c.t != null && c.t > m.t ? Math.round((c.t - m.t) / 1000) : null;
-    const cal = c ? `<span class="lc${ok ? " ok" : " guess"}" title="${esc(c.name)}">${ok ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${ok ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}` +
+    const cal = c ? `<span class="lc${ok ? " ok" : " guess"}" title="${esc((c.dir ? c.dir + " / " : "") + c.name)}">${ok ? "✓" : "？"} 校正：${c.dir ? `<span class="ldi">${esc(c.dir)} /</span> ` : ""}${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${ok ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}` +
                     `<button type="button" class="rm" data-rmc="${LIB.cals.indexOf(c)}" title="把這個校正 CSV 從清單移除（電腦裡的檔案不會被刪除）">✕</button></span>`
                   : `<span class="lc">無校正</span>`;
-    return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>${cal}` +
+    return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span>${nameCell(m)}${cal}` +
            `<button type="button" class="rm" data-rm="${i}" title="從清單移除（電腦裡的檔案不會被刪除）">移除</button></div>`;
   }).join("");
   const i = V.indexOf(curEntry);
@@ -1326,7 +1331,7 @@ async function filesFromDrop(dt){
   if (!entries.length) return [...dt.files];
   const out = [];
   const walk = async en => {
-    if (en.isFile) out.push(await new Promise((res, rej) => en.file(res, rej)));
+    if (en.isFile){ const f = await new Promise((res, rej) => en.file(res, rej)); f._path = en.fullPath; out.push(f); }
     else if (en.isDirectory){ const rd = en.createReader(); let batch;
       do { batch = await new Promise((res, rej) => rd.readEntries(res, rej)); for (const e of batch) await walk(e); } while (batch.length); }
   };
