@@ -3,172 +3,404 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>胸口 SpO2 波形回放</title>
+<title>VitalSign檔案回放</title>
 <style>
 :root{
-  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f24; --muted:#5f6b7a; --line:#e3e7ec; --grid:#eef1f4;
-  --accent:#2563eb; --ecg:#0f766e; --ir:#7c3aed; --red:#dc2626; --ax:#2563eb; --ay:#16a34a; --az:#d97706;
-  --cal:#9333ea; --ok:#16a34a; --hold:#d97706; --bad:#dc2626; --warm:#94a3b8; --gap:#dc2626;
-  --st-update:rgba(22,163,74,.12); --st-hold:rgba(217,119,6,.18); --st-no:rgba(220,38,38,.14); --st-warm:rgba(148,163,184,.18);
+  --bg:#f3f4f6; --panel:#ffffff; --panel2:#f8f9fb; --ink:#14181f; --muted:#667085; --faint:#98a2b3; --line:#e4e7ec; --grid:#eef0f3;
+  --accent:#2563eb; --accent-soft:rgba(37,99,235,.10); --ecg:#0f766e; --ir:#7c3aed; --red:#dc2626; --ax:#2563eb; --ay:#16a34a; --az:#d97706;
+  --ok:#16a34a; --hold:#d97706; --bad:#dc2626; --warm:#94a3b8; --gap:#dc2626;
+  --st-update:rgba(22,163,74,.10); --st-hold:rgba(217,119,6,.16); --st-no:rgba(220,38,38,.12); --st-warm:rgba(148,163,184,.16);
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0f1318; --panel:#171c23; --ink:#e6e9ee; --muted:#93a0b1; --line:#2a313b; --grid:#20262e;
-    --accent:#60a5fa; --ecg:#2dd4bf; --ir:#a78bfa; --red:#f87171; --ax:#60a5fa; --ay:#4ade80; --az:#fbbf24;
-    --cal:#c084fc; --ok:#4ade80; --hold:#fbbf24; --bad:#f87171; --warm:#64748b; --gap:#f87171;
-    --st-update:rgba(74,222,128,.10); --st-hold:rgba(251,191,36,.16); --st-no:rgba(248,113,113,.14); --st-warm:rgba(100,116,139,.18);
+    --bg:#0c0f14; --panel:#151a21; --panel2:#1a2029; --ink:#e7eaf0; --muted:#98a2b3; --faint:#667085; --line:#262d38; --grid:#1d232c;
+    --accent:#60a5fa; --accent-soft:rgba(96,165,250,.14); --ecg:#2dd4bf; --ir:#a78bfa; --red:#f87171; --ax:#60a5fa; --ay:#4ade80; --az:#fbbf24;
+    --ok:#22c55e; --hold:#f59e0b; --bad:#ef4444; --warm:#64748b; --gap:#f87171;
+    --st-update:rgba(74,222,128,.09); --st-hold:rgba(251,191,36,.14); --st-no:rgba(248,113,113,.12); --st-warm:rgba(100,116,139,.16);
+    --shadow:0 0 0 1px rgba(255,255,255,.02);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0f1318; --panel:#171c23; --ink:#e6e9ee; --muted:#93a0b1; --line:#2a313b; --grid:#20262e;
-  --accent:#60a5fa; --ecg:#2dd4bf; --ir:#a78bfa; --red:#f87171; --ax:#60a5fa; --ay:#4ade80; --az:#fbbf24;
-  --cal:#c084fc; --ok:#4ade80; --hold:#fbbf24; --bad:#f87171; --warm:#64748b; --gap:#f87171;
-  --st-update:rgba(74,222,128,.10); --st-hold:rgba(251,191,36,.16); --st-no:rgba(248,113,113,.14); --st-warm:rgba(100,116,139,.18);
+  --bg:#0c0f14; --panel:#151a21; --panel2:#1a2029; --ink:#e7eaf0; --muted:#98a2b3; --faint:#667085; --line:#262d38; --grid:#1d232c;
+  --accent:#60a5fa; --accent-soft:rgba(96,165,250,.14); --ecg:#2dd4bf; --ir:#a78bfa; --red:#f87171; --ax:#60a5fa; --ay:#4ade80; --az:#fbbf24;
+  --ok:#22c55e; --hold:#f59e0b; --bad:#ef4444; --warm:#64748b; --gap:#f87171;
+  --st-update:rgba(74,222,128,.09); --st-hold:rgba(251,191,36,.14); --st-no:rgba(248,113,113,.12); --st-warm:rgba(100,116,139,.16);
+  --shadow:0 0 0 1px rgba(255,255,255,.02);
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif}
-header{padding:14px 16px 6px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}
-h1{font-size:18px;margin:0}
-.sub{color:var(--muted);font-size:12.5px}
-main{padding:0 16px 24px;max-width:1500px;margin:0 auto}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
-.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
-label{color:var(--muted);font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
-select,input[type=number]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit}
-input[type=number]{width:62px}
-button{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 12px;font:inherit;cursor:pointer}
-button:hover{border-color:var(--accent)}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-button:disabled{opacity:.45;cursor:default}
-#drop{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);cursor:pointer}
-#drop.over{border-color:var(--accent);color:var(--accent)}
-.calrow{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
-#calInfo.on{color:var(--cal)}
-#info{font-size:12.5px;color:var(--muted);white-space:pre-line}
-.grid{display:grid;grid-template-columns:1fr 290px;gap:12px;margin-top:12px}
-@media (max-width:900px){.grid{grid-template-columns:1fr}}
-.panelhead{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);margin:2px 2px 4px}
-canvas{display:block;width:100%;touch-action:none}
-#wave{cursor:grab}
-#trend{cursor:crosshair}
-.player{margin-top:12px}
-#seek{flex:1;min-width:160px;accent-color:var(--accent)}
-.tnow{font-variant-numeric:tabular-nums;min-width:120px}
-.readout .big{font-variant-ligatures:none;font-size:34px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.1}
-.readout .lbl{color:var(--muted);font-size:12px}
-.readout .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;margin-top:10px}
-.readout .kv div:nth-child(odd){color:var(--muted)}
-.readout .kv div:nth-child(even){font-variant-numeric:tabular-nums;word-break:break-all}
-.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;color:#fff}
-.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}
-.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
-.legend b{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
-#prog{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:8px;display:none}
-#prog>div{height:100%;width:0;background:var(--accent)}
-.stats{font-size:12.5px;margin-top:10px;color:var(--muted)}
-.stats table{border-collapse:collapse;width:100%}
-.stats td{padding:2px 4px;border-bottom:1px solid var(--line)}
-.stats td:last-child{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,"Segoe UI",sans-serif}
+.num{font-variant-numeric:tabular-nums}
 .hide{display:none!important}
-.imugrid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start}
-@media (max-width:900px){.imugrid{grid-template-columns:1fr}}
-#gl{border-radius:8px;background:var(--bg)}
-kbd{border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11px}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel)}
+
+/* ---------- 頂部 */
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.topin{max-width:1500px;margin:0 auto;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;flex:none}
+.logo svg{width:18px;height:18px}
+h1{font-size:15px;font-weight:650;margin:0;letter-spacing:.01em;white-space:nowrap}
+.tag{color:var(--muted);font-size:12px}
+.filechip{display:none;align-items:center;gap:8px;max-width:100%;padding:4px 6px 4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12.5px}
+.filechip b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}
+body.loaded .filechip{display:inline-flex}
+.transport{max-width:1500px;margin:0 auto;padding:0 16px 10px;display:none;align-items:center;gap:10px 14px;flex-wrap:wrap}
+body.loaded .transport{display:flex}
+#play{width:38px;height:38px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:14px;flex:none}
+.clock{font:600 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;min-width:150px}
+.clock span{color:var(--faint);font-weight:500}
+#seek{flex:1 1 260px;min-width:160px;accent-color:var(--accent);height:24px}
+.seg{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+
+main{padding:14px 16px 28px;max-width:1500px;margin:0 auto;display:grid;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow);min-width:0}
+.cardhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 14px;margin:-2px 0 10px}
+h2{font-size:13.5px;font-weight:650;margin:0}
+h2 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+.row{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.sub{color:var(--muted);font-size:12.5px}
+
+/* ---------- 控制項 */
+label{color:var(--muted);font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+select,input[type=number]{height:30px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:0 8px;font:inherit;font-size:13px}
+select:focus,input:focus-visible,button:focus-visible{outline:2px solid var(--accent-soft);outline-offset:1px;border-color:var(--accent)}
+input[type=number]{width:64px}
+button{height:30px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:0 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap;transition:border-color .12s,background .12s}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover:not(:disabled){color:#fff;filter:brightness(1.08)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button:disabled{opacity:.4;cursor:default}
+.chk{gap:7px;cursor:pointer;user-select:none}
+.chk input{appearance:none;width:30px;height:18px;border-radius:999px;background:var(--line);position:relative;margin:0;cursor:pointer;transition:background .15s}
+.chk input::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.chk input:checked{background:var(--accent)}
+.chk input:checked::after{transform:translateX(12px)}
+.chk input:disabled{opacity:.4}
+.divider{width:1px;align-self:stretch;background:var(--line);margin:2px 2px}
+
+#drop{border:1.5px dashed var(--line);border-radius:14px;padding:44px 16px;text-align:center;color:var(--muted);cursor:pointer;background:var(--panel);transition:border-color .12s,background .12s}
+#drop strong{display:block;color:var(--ink);font-size:15px;font-weight:600;margin-bottom:4px}
+#drop.over,#drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+body.loaded #drop{display:none}
+body:not(.loaded) .calbar{display:none}
+body:not(.loaded) .grid,body:not(.loaded) #imuCard{display:none}
+#info{font-size:12px;color:var(--muted);white-space:pre-line;margin-top:8px;line-height:1.55}
+#info:empty{display:none}
+#prog{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:10px;display:none}
+#prog>div{height:100%;width:0;background:var(--accent);transition:width .15s}
+
+/* ---------- 圖表區 */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+canvas{display:block;width:100%;touch-action:pan-y}
+#wave{cursor:grab}
+#wave:active{cursor:grabbing}
+#trend{cursor:crosshair;touch-action:none}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.legend b{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--line)}
+.hint{margin-top:8px;font-size:11.5px;color:var(--faint);display:flex;flex-wrap:wrap;gap:4px 14px}
+
+/* ---------- 讀值 */
+.side{position:sticky;top:120px;display:grid;gap:14px}
+.readout .lbl{color:var(--muted);font-size:12px}
+.spo2{display:flex;align-items:baseline;gap:8px;margin:2px 0 4px}
+.readout .big{font:700 48px/1.05 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em;font-variant-ligatures:none}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:650;color:#fff;letter-spacing:.03em}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);font-size:13px;margin-top:12px;border-top:1px solid var(--line)}
+.kv div{padding:6px 0;border-bottom:1px solid var(--line)}
+.kv div:nth-child(odd){color:var(--muted);padding-right:14px;white-space:nowrap}
+.kv div:nth-child(even){font-variant-numeric:tabular-nums;word-break:break-word;text-align:right}
+.stats .lbl{margin-bottom:6px}
+.stats table{border-collapse:collapse;width:100%;font-size:12.5px}
+.stats td{padding:5px 0;border-bottom:1px solid var(--line);color:var(--muted)}
+.stats td:last-child{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;padding-left:10px}
+
+/* ---------- IMU */
+.imugrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
+@media (max-width:980px){.imugrid{grid-template-columns:1fr}}
+#gl{border-radius:10px;background:var(--panel2);touch-action:pan-y}
+.calbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);margin-bottom:12px}
+#calInfo{flex:1 1 260px;font-size:12px;color:var(--muted)}
+details.note{margin-top:12px;font-size:12px;color:var(--muted)}
+details.note summary{cursor:pointer;color:var(--muted);list-style:none}
+details.note summary::before{content:"▸ ";}
+details.note[open] summary::before{content:"▾ ";}
+details.note p{margin:6px 0 0;line-height:1.6}
+@media (max-width:640px){.top{position:static}h1{font-size:14px}.tag{display:none}.clock{min-width:0}.readout .big{font-size:34px}.side{position:static}}
+
+/* ---------- 精簡版面 */
+.setup{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.4fr) auto;gap:12px;align-items:stretch}
+@media (max-width:980px){.setup{grid-template-columns:1fr}}
+body:not(.loaded) .setup,body:not(.loaded) .grid,body:not(.loaded) #imuCard{display:none}
+.step{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);min-width:0}
+.stepn{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:12px;display:grid;place-items:center;flex:none}
+#calStep.done .stepn{background:var(--ok);color:#fff}
+#calStep.warn .stepn{background:var(--hold);color:#fff}
+.stepbody{flex:1;min-width:0}
+.steplbl{font-size:11.5px;color:var(--muted)}
+.opt{font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:0 6px;margin-left:4px}
+.stepval{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stepsub{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#calStep.warn .stepsub{color:var(--hold)}
+.calat{display:none;margin-top:4px;font-size:12px}
+#calStep.has .calat{display:inline-flex}
+.calat input{width:78px;height:26px}
+.settings{display:block;padding:0}
+.settings summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;white-space:nowrap}
+.settings:not([open]) summary{height:100%}
+.settings summary::-webkit-details-marker{display:none}
+.settings[open]{grid-column:1/-1}
+.setgrid{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:0 16px 14px}
+.heros{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hero{display:flex;align-items:baseline;gap:4px}
+.readout .big{font:700 52px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.03em}
+.big2{font:700 34px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}
+.unit{color:var(--muted);font-size:14px;font-weight:600}
+#roStatus{margin-top:10px}
+.reason{margin-top:6px;font-size:12px;color:var(--muted)}
+.reason:empty{display:none}
+details.more{margin-top:12px;font-size:12.5px}
+details.more summary{cursor:pointer;color:var(--muted);font-size:12px;list-style:none}
+details.more summary::before{content:"▸ "}
+details.more[open] summary::before{content:"▾ "}
+details.more .kv{margin-top:8px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tv{font:700 20px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px}
+.stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat3 .tv{font-size:18px}
+.hint{display:block;font-size:11.5px;color:var(--faint);margin-top:6px}
+#prog{margin-top:0}
+#calStep:not(.has){border:1.5px dashed var(--accent);background:var(--accent-soft)}
+#calStep:not(.has) .steplbl{color:var(--accent);font-weight:600}
+#calStep.over{border:1.5px dashed var(--accent);background:var(--accent-soft)}
+.side{position:static}
+#imuCard .cardhead{margin-bottom:8px}
+#imState{font-size:11.5px;text-align:right}
+.formula{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.flbl{color:var(--muted);font-size:12px}
+.flbl select{flex:1}
+.ftext{margin-top:8px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.hint{display:flex!important;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.gapchk{margin-left:auto;font-size:11.5px}
+.trendwrap{position:relative}
+#trend{cursor:crosshair;touch-action:none}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;line-height:1.45;padding:6px 9px;border-radius:8px;white-space:nowrap;opacity:0;transform:translate(-50%,-110%);transition:opacity .08s}
+.tip.on{opacity:.94}
+.relchip{display:inline-flex;align-items:center;gap:5px}
+.relchip b{width:10px;height:10px;border-radius:3px;display:inline-block}
+.heros{grid-template-columns:1.1fr 1fr}
+.hrs{display:grid;gap:8px;align-content:start}
+.big3{font:700 26px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.segctl{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px;gap:2px;flex-wrap:wrap}
+.segctl button{height:26px;border:0;background:transparent;border-radius:7px;padding:0 11px;font-size:12.5px;color:var(--muted)}
+.segctl button:hover:not(.on){color:var(--ink);border:0}
+.segctl button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.dropbtns{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.librows{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.librow{display:grid;grid-template-columns:150px minmax(0,1.2fr) minmax(0,1.4fr) auto;gap:12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px}
+.librow:last-child{border-bottom:0}
+.librow:hover{background:var(--panel2)}
+.librow.cur{background:var(--accent-soft)}
+.librow .lt{font-variant-numeric:tabular-nums;color:var(--muted)}
+.librow .ln{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.librow .lc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.librow .lc.ok{color:var(--ok)}
+.librow .rm{height:24px;padding:0 9px;font-size:11.5px;color:var(--muted);border-color:transparent;background:transparent;opacity:.55}
+.librow:hover .rm{opacity:1;border-color:var(--line)}
+.librow .rm:hover{color:var(--bad);border-color:var(--bad)}
+.librow .lc .rm{height:20px;padding:0 6px;margin-left:6px;vertical-align:1px}
+.librow .lc.guess{color:var(--hold)}
+.libnote{padding:8px 12px;font-size:12px;color:var(--hold)}
+@media (max-width:760px){.librow{grid-template-columns:1fr}}
+.dropalt{margin-top:10px;font-size:12px}
+.dropalt a{color:var(--accent)}
+#drop{cursor:default}
+.libdirs{font-size:12px;color:var(--muted);margin:-4px 2px 8px}
+.strow{display:flex;align-items:center;gap:8px;margin-top:10px;min-height:24px;min-width:0}
+.strow #roStatus{margin-top:0;flex:none}
+.strow .reason{margin-top:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strow .reason:empty{display:block}
+.ecggrid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr) 230px;gap:16px;align-items:start}
+@media (max-width:1100px){.ecggrid{grid-template-columns:1fr}}
+.hrvtbl table{border-collapse:collapse;width:100%;font-size:12.5px}
+.hrvtbl th{font-weight:600;color:var(--muted);text-align:right;padding:4px 6px;border-bottom:1px solid var(--line);font-size:11.5px}
+.hrvtbl th:first-child,.hrvtbl td:first-child{text-align:left}
+.hrvtbl td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.hrvtbl td:first-child{color:var(--muted)}
+#tacho{cursor:crosshair}
+#annCard .cardhead{margin-bottom:8px}
+#annAdd{height:28px;font-size:12.5px}
+.annsave{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.annsave button{height:26px;font-size:12px}
+.annsave .ok{color:var(--ok)}
+.annsave .warn{color:var(--hold)}
+.annedit{border:1px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:10px;margin-bottom:10px}
+.annedit textarea{width:100%;margin-top:8px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--panel);color:var(--ink);resize:vertical}
+.annlist{display:grid;gap:6px;max-height:260px;overflow:auto}
+.annitem{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:start;padding:7px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:12.5px}
+.annitem:hover{background:var(--panel2)}
+.annitem.on{border-color:var(--accent)}
+.annitem i{width:10px;height:10px;border-radius:3px;margin-top:4px}
+.annitem .at{color:var(--muted);font-variant-numeric:tabular-nums}
+.annitem .an{color:var(--ink);word-break:break-word}
+.annitem button{height:22px;padding:0 7px;font-size:11.5px}
+.annempty{font-size:12px;color:var(--faint)}
+.annio{margin-top:10px;font-size:11.5px;color:var(--faint)}
+.annio a{color:var(--muted)}
 </style>
 </head>
 <body>
-<header>
-  <h1>胸口 SpO2 波形回放</h1>
-  <span class="sub">ChestSpO2Verified 離線重算 · 新舊 CSV 都支援 · 檔案只在你的瀏覽器裡處理，不會上傳</span>
-</header>
+<div class="top">
+  <div class="topin">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></div>
+      <h1>VitalSign檔案回放</h1><span class="tag">檔案只在瀏覽器內處理，不會上傳</span>
+    </div>
+    <button id="export" disabled>匯出每秒結果 CSV</button>
+  </div>
+  <div class="transport">
+    <button id="play" class="primary" disabled aria-label="播放">▶</button>
+    <div class="clock num" id="tnow">0.00 <span>/ 0.00 s</span></div>
+    <input id="seek" type="range" min="0" max="1000" value="0" step="1" disabled aria-label="時間">
+    <label class="seg">速度 <select id="speed"><option>0.5</option><option selected>1</option><option>2</option><option>5</option><option>10</option><option>30</option></select>×</label>
+    <label class="seg">視窗 <select id="win"><option>5</option><option selected>10</option><option>20</option><option>30</option><option>60</option></select>秒</label>
+  </div>
+</div>
 <main>
-  <div class="card">
-    <div id="drop">把 App 錄製的 CSV 拖到這裡，或<u>點這裡選檔案</u><input id="file" type="file" accept=".csv,text/csv" class="hide"></div>
-    <div class="row" style="margin-top:10px">
-      <label>公式 <select id="profile">
-        <option value="CHEST_BODY">胸口裝置-貼胸口（CHEST_BODY）</option>
-        <option value="CHEST">胸口裝置-手指貼（CHEST）</option>
-        <option value="FINGER">手指（FINGER）</option></select></label>
-      <label>穩定期 <input id="settle" type="number" min="0" max="120" value="20"> 秒</label>
-      <label><input id="useEcg" type="checkbox" checked> 使用 ECG</label>
-      <label title="Kotlin 註解建議掉封包時呼叫 reset()；App 實際是否如此請確認。只對新版 CSV 有效"><input id="resetGap" type="checkbox"> 掉包時 reset()</label>
-      <button id="rerun" disabled>重新計算</button>
-      <button id="export" disabled>匯出每秒結果 CSV</button>
-      <span id="info"></span>
-    </div>
-    <div class="row calrow">
-      <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
-      <button id="calBtn" disabled>上傳校正 CSV…</button>
-      <button id="calClear" disabled>清除校正</button>
-      <span id="calInfo" class="sub">校正 CSV：未載入。先開主 CSV，再上傳兩點校正後的 data_calibrated_*.csv，IMU 會從校正時間點起改用校正 CSV。</span>
-    </div>
-    <div id="prog"><div></div></div>
+  <div id="drop"><strong>開啟一般 CSV 和校正 CSV 的資料夾</strong>選資料夾就好，裡面的 CSV 會全部讀進來，並依時間自動配對；也可以直接把檔案或資料夾拖進來
+    <div class="dropbtns"><button type="button" class="primary" id="pickMainDir">開啟一般 CSV 資料夾…</button><button type="button" id="pickCalDir">開啟校正 CSV 資料夾…</button></div>
+    <div class="dropalt">或 <a href="#" id="pickFiles">直接選 CSV 檔</a>（可多選，依檔名自動分類）</div>
+    <input id="file" type="file" accept=".csv,text/csv" multiple class="hide">
+    <input id="dirMain" type="file" webkitdirectory multiple class="hide"><input id="dirCal" type="file" webkitdirectory multiple class="hide"></div>
+  <div class="card hide" id="libCard">
+    <div class="cardhead"><h2>檔案清單<small id="libSum"></small></h2>
+      <div class="row" style="gap:6px"><button type="button" id="libPrev">‹ 上一筆</button><button type="button" id="libNext">下一筆 ›</button>
+        <button type="button" id="libMainDir">開啟一般 CSV 資料夾…</button><button type="button" id="libCalDir">開啟校正 CSV 資料夾…</button></div></div>
+    <div class="libdirs" id="libDirs"></div>
+    <div class="librows" id="libRows"></div>
   </div>
 
-  <div class="card player">
-    <div class="row">
-      <button id="play" class="primary" disabled>▶ 播放</button>
-      <label>速度 <select id="speed"><option>0.5</option><option selected>1</option><option>2</option><option>5</option><option>10</option><option>30</option></select>×</label>
-      <label>視窗 <select id="win"><option>5</option><option selected>10</option><option>20</option><option>30</option><option>60</option></select> 秒</label>
-      <label>波形 <select id="filt"><option value="raw">原始</option><option value="bp" selected>帶通（App 演算法同款）</option></select></label>
-      <input id="seek" type="range" min="0" max="1000" value="0" step="1" disabled>
-      <span class="tnow" id="tnow">0.00 / 0.00 s</span>
+  <div class="setup">
+    <div class="step">
+      <div class="stepn">1</div>
+      <div class="stepbody"><div class="steplbl">原始資料</div><div class="stepval" id="fileName">--</div><div class="stepsub" id="info"></div></div>
+      <button class="ghost" id="openBtn" type="button">換資料夾</button>
     </div>
-    <div class="sub" style="margin-top:4px"><kbd>空白鍵</kbd> 播放/暫停 · <kbd>←</kbd><kbd>→</kbd> 前後 1 秒（按住 Shift 為 10 秒）· 波形上拖曳可平移、滾輪可縮放 · 點趨勢圖可跳到該時間</div>
+    <div class="step" id="calStep">
+      <div class="stepn">2</div>
+      <div class="stepbody"><div class="steplbl">校正 CSV <span class="opt">選填</span></div>
+        <div class="stepsub" id="calInfo">從校正那一刻開始錄的檔案，上傳後會自動找到開始時間</div>
+        <label class="calat" id="calAt">從 <input id="calStart" class="num" type="number" step="0.1" min="0" disabled> 秒起使用</label></div>
+      <input id="calFile" type="file" accept=".csv,text/csv" class="hide">
+      <button id="calBtn" type="button" disabled>上傳</button>
+      <button id="calClear" class="ghost" type="button" disabled>移除</button>
+      <button id="calDirBtn" class="ghost" type="button" title="開啟放校正 CSV 的資料夾，自動配對">資料夾…</button>
+    </div>
+    <details class="step settings">
+      <summary><span class="gear">⚙</span> 計算設定</summary>
+      <div class="setgrid">
+        <label>穩定期 <input id="settle" type="number" min="0" max="120" value="20"> 秒</label>
+        <label class="chk"><input id="useEcg" type="checkbox" checked> 使用 ECG</label>
+        <label class="chk" title="只對新版 CSV 有效"><input id="resetGap" type="checkbox"> 掉包時 reset()</label>
+        <label>波形 <select id="filt"><option value="bp" selected>同 App 畫面</option><option value="raw">原始</option></select></label>
+        <button id="rerun" disabled>重新計算</button>
+      </div>
+    </details>
   </div>
+  <div id="prog"><div></div></div>
 
   <div class="grid">
     <div class="card">
-      <div class="panelhead"><span>即時波形（右緣 = 目前時間）</span>
-        <span class="legend"><span><i style="background:var(--ecg)"></i>ECG</span><span><i style="background:var(--ir)"></i>PPG IR</span><span><i style="background:var(--red)"></i>PPG RED</span><span><i style="background:var(--ax)"></i>ACC X</span><span><i style="background:var(--ay)"></i>Y</span><span><i style="background:var(--az)"></i>Z</span><span><i style="background:var(--gap)"></i>掉包</span></span></div>
-      <canvas id="wave" height="460"></canvas>
-      <div class="panelhead" style="margin-top:10px"><span>整段趨勢（每秒結果，時間 = App 當時顯示的時刻）</span>
-        <span class="legend"><span><b style="background:var(--st-update)"></b>UPDATE</span><span><b style="background:var(--st-hold)"></b>HOLD</span><span><b style="background:var(--st-no)"></b>NO_OUTPUT</span><span><b style="background:var(--st-warm)"></b>WARMUP</span></span></div>
-      <canvas id="trend" height="400"></canvas>
-      <div class="legend" style="margin-top:4px">
-        <span><i style="background:var(--accent)"></i>SpO2_out</span><span><i style="background:var(--muted)"></i>SpO2_raw（單秒）</span>
-        <span><i style="background:var(--ir)"></i>R（單秒）</span><span><i style="background:var(--accent)"></i>R_out</span><span><i style="background:var(--az)"></i>R_C_out（方法 C）</span>
-        <span><i style="background:var(--red)"></i>驗證 HR</span><span><i style="background:var(--ecg)"></i>PPG HR</span>
+      <div class="cardhead"><div class="row" style="gap:14px"><h2>波形</h2>
+          <label class="chk" title="在 ECG 上標出 R 波、RR 間期與不規則心跳，並顯示 HRV 分析。關閉時只看原始波形"><input id="ecgA" type="checkbox"> ECG 分析</label></div>
+        <div class="segctl" id="viewSel" role="tablist" aria-label="顯示哪些波形">
+          <button type="button" data-v="all" class="on">全部</button>
+          <button type="button" data-v="ecg">ECG</button>
+          <button type="button" data-v="ppg">PPG</button>
+          <button type="button" data-v="ir">PPG IR</button>
+          <button type="button" data-v="red">PPG RED</button>
+          <button type="button" data-v="imu">IMU</button>
+        </div></div>
+      <canvas id="wave" height="440"></canvas>
+      <div class="hint"><span>拖曳平移 · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>＋滾輪縮放 · <kbd>空白鍵</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 前後 1 秒</span>
+        <label class="chk gapchk"><input id="showGaps" type="checkbox"> 顯示掉包位置</label></div>
+      <div class="cardhead" style="margin-top:20px"><h2>SpO2 與心率變化<small>點一下跳到該時間</small></h2><span class="legend" id="relLegend"></span></div>
+      <div class="trendwrap"><canvas id="trend" height="360"></canvas><div id="tip" class="tip"></div></div>
+    </div>
+    <div class="side">
+      <div class="card readout">
+        <div class="heros">
+          <div><div class="lbl">SpO2</div><div class="hero"><span class="big num" id="roSpo2">--</span><span class="unit">%</span></div></div>
+          <div class="hrs">
+            <div><div class="lbl"><i class="dot" style="background:var(--ecg)"></i>ECG 心率</div><div class="hero"><span class="big3 num" id="roHrE">--</span><span class="unit">bpm</span></div></div>
+            <div><div class="lbl"><i class="dot" style="background:var(--ir)"></i>PPG 心率</div><div class="hero"><span class="big3 num" id="roHrP2">--</span><span class="unit">bpm</span></div></div>
+          </div>
+        </div>
+        <div class="strow"><div id="roStatus"></div><div class="reason" id="roReason"></div></div>
+        <div class="formula">
+          <label class="flbl">公式 <select id="profile">
+            <option value="CHEST_BODY">胸口裝置-貼胸口</option>
+            <option value="CHEST">胸口裝置-手指貼</option>
+            <option value="FINGER">手指</option></select></label>
+          <div class="ftext num" id="formulaText"></div>
+        </div>
+      </div>
+      <div class="card" id="annCard">
+        <div class="cardhead"><h2>標註</h2><button type="button" class="primary" id="annAdd">＋ 在目前時間加標註</button></div>
+        <div class="annsave" id="annSave"></div>
+        <div id="annEdit" class="annedit hide">
+          <div class="row" style="gap:8px"><label>類別 <select id="annType"></select></label></div>
+          <div class="row" style="gap:8px;margin-top:8px">
+            <label>從 <input id="annT0" class="num" type="number" step="0.1" style="width:84px"> 秒</label>
+            <label>到 <input id="annT1" class="num" type="number" step="0.1" style="width:84px"> 秒</label>
+            <button type="button" class="ghost" id="annToCur" title="把「到」設成目前時間">到＝目前</button>
+          </div>
+          <textarea id="annNote" rows="2" placeholder="備註（例如：病人咳嗽、疑似早期收縮…）"></textarea>
+          <div class="row" style="gap:8px;justify-content:flex-end"><button type="button" class="ghost" id="annDel">刪除</button><button type="button" id="annDone" class="primary">完成</button></div>
+        </div>
+        <div class="annlist" id="annList"></div>
+        <div class="annio"><a href="#" id="annDown">下載標註 CSV</a> · <a href="#" id="annUpLink">從 CSV 載入標註</a><input id="annUp" type="file" accept=".csv,text/csv" class="hide"></div>
+      </div>
+      <div class="card" id="imuCard">
+      <div class="cardhead"><h2>姿態</h2><span class="sub" id="imState">--</span></div>
+      <div>
+        <canvas id="gl" height="250"></canvas>
+        <div>
+          <div class="tiles" style="margin-top:10px">
+            <div class="tile"><div class="lbl">Roll</div><div class="tv num" id="imRoll">--</div></div>
+            <div class="tile"><div class="lbl">Pitch</div><div class="tv num" id="imPitch">--</div></div>
+            <div class="tile"><div class="lbl">Yaw</div><div class="tv num" id="imYaw">--</div></div>
+          </div>
+          <details class="more"><summary>詳細數值</summary>
+            <div class="kv">
+              <div>bias</div><div id="imBias">--</div>
+              <div>q (w,x,y,z)</div><div id="imQ">--</div>
+              <div>ACC (mg)</div><div id="imAcc">--</div>
+              <div>GYRO (°/s)</div><div id="imGyro">--</div>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
-    <div class="card readout">
-      <div class="lbl">SpO2（App 顯示格式）</div>
-      <div class="big" id="roSpo2">--</div>
-      <div style="margin-top:6px" id="roStatus"></div>
-      <div class="kv">
-        <div>R_out</div><div id="roR">--</div>
-        <div>R（單秒）</div><div id="roR1">--</div>
-        <div>R_C_out</div><div id="roRC">--</div>
-        <div>驗證 HR</div><div id="roHr">--</div>
-        <div>PPG HR</div><div id="roHrP">--</div>
-        <div>方法</div><div id="roMethod">--</div>
-        <div>ECG</div><div id="roEcg">--</div>
-        <div>原因</div><div id="roReason">--</div>
-        <div>視窗中心</div><div id="roTc">--</div>
-      </div>
-      <div class="stats" id="stats"></div>
     </div>
   </div>
 
-  <div class="card" style="margin-top:12px" id="imuCard">
-    <div class="panelhead"><span>IMU 3D 姿態（Madgwick，與 imu_cal.py / App fuseImu 相同；兩點校正後 CSV 直接用 CSV 內的 GyroBias）</span>
-      <span class="row" style="gap:8px"><label><input id="objFile" type="file" accept=".obj" class="hide"><button id="objBtn" type="button">載入 3D 模型（.obj）</button></label><span class="sub" id="objInfo">內建簡易人形</span></span></div>
-    <div class="imugrid">
-      <canvas id="gl" height="420"></canvas>
-      <div class="readout">
-        <div class="kv" id="imuKv">
-          <div>來源</div><div id="imSrc">--</div>
-          <div>狀態</div><div id="imState">--</div>
-          <div>bias 來源</div><div id="imBias">--</div>
-          <div>q (w,x,y,z)</div><div id="imQ">--</div>
-          <div>Roll</div><div id="imRoll">--</div>
-          <div>Pitch</div><div id="imPitch">--</div>
-          <div>Yaw</div><div id="imYaw">--</div>
-          <div>ACC (mg)</div><div id="imAcc">--</div>
-          <div>GYRO (°/s)</div><div id="imGyro">--</div>
-        </div>
-        <div class="sub" style="margin-top:10px">模型方向與 Python 腳本相同：IMU 四元數軸重映射 (q0, q2, −q1, q3)、轉 180° 背對鏡頭、畫面 −90° 旋轉。把 FinalBaseMesh.obj 放在 index.html 同一個資料夾（GitHub repo 根目錄），開啟網頁時會自動載入。Roll/Pitch/Yaw 由原始四元數換算（ZYX）。</div>
+  <div class="card hide" id="ecgCard">
+    <div class="cardhead"><h2>ECG 分析<small>R 波自動偵測（Pan-Tompkins）· 僅供參考與複查，不是診斷</small></h2>
+      <div class="row" style="gap:6px"><button type="button" id="beatsExport">匯出 R 波與 RR 間期 CSV</button></div></div>
+    <div class="ecggrid">
+      <div>
+        <div class="hrvtbl" id="hrvTbl"></div>
+        <div class="sub" style="margin-top:8px;font-size:11.5px">不規則：RR 間期與前後 10 拍中位數相差超過 20%（可能是早期收縮、漏偵測或雜訊，請對照波形確認）。HRV 只用正常 RR（排除不規則、掉包、離身處）。</div>
       </div>
+      <div><div class="lbl" style="margin-bottom:4px">RR 間期變化（ms）· 點一下跳到該時間</div><canvas id="tacho" height="190"></canvas></div>
+      <div><div class="lbl" style="margin-bottom:4px">Poincaré 圖（藍＝目前視窗、橘＝不規則）</div><canvas id="poinc" height="190"></canvas></div>
     </div>
   </div>
 </main>
@@ -236,47 +468,7 @@ const IMU = (() => {
     }
     return { Q, valid, bias, skipWarmup, calibDoneTime };
   }
-  // 校正 CSV 對齊到主 CSV：先用 Time 粗對齊，再在 ±5 秒內比對 |GYRO| 與 |ACC|（兩點校正只是旋轉，向量長度不變）
-  function norms(x, y, z){ const n = x.length, o = new Float64Array(n); for (let i=0;i<n;i++) o[i] = Math.hypot(x[i], y[i], z[i]); return o; }
-  function nccScan(main, cal, lo, hi, m, step){
-    // 回傳每個 lag（lo..hi，間隔 step）的 Pearson 相關
-    let cm = 0; for (let j=0;j<m;j++) cm += cal[j]; cm /= m;
-    let cs = 0; const y = new Float64Array(m); for (let j=0;j<m;j++){ y[j] = cal[j] - cm; cs += y[j]*y[j]; }
-    cs = Math.sqrt(cs / m);
-    const out = [];
-    for (let L = lo; L <= hi; L += step){
-      let sx = 0, sxx = 0, sxy = 0;
-      for (let j=0;j<m;j++){ const v = main[L+j]; sx += v; sxx += v*v; sxy += v*y[j]; }
-      const sd = Math.sqrt(Math.max(sxx/m - (sx/m)*(sx/m), 0));
-      out.push(cs > 1e-9 && sd > 1e-9 ? sxy / (m * sd * cs) : (cs <= 1e-9 && sd <= 1e-9 ? 0 : -1));
-    }
-    return out;
-  }
-  function decim(a, k){ const n = Math.floor(a.length / k), o = new Float64Array(n); for (let i=0;i<n;i++){ let s=0; for (let j=0;j<k;j++) s += a[i*k+j]; o[i] = s/k; } return o; }
-  function alignCalibrated(mainT, mA, mG, calT0, cA, cG, fs = 256){
-    const gm = norms(...mG), am = norms(...mA), gc = norms(...cG), ac = norms(...cA);
-    const n = gm.length, m = Math.min(gc.length, 8 * fs);
-    const inRange = Number.isFinite(calT0) && calT0 >= mainT[0] - 1 && calT0 <= mainT[n-1];
-    let base = 0;
-    if (inRange){ let lo = 0, hi = n; while (lo < hi){ const k = (lo+hi)>>1; if (mainT[k] < calT0) lo = k+1; else hi = k; } base = Math.min(lo, n-1); }
-    if (m < fs/2 || n - m < 0) return {start: base, r: NaN, shiftS: 0, method: "只用 Time（資料太短無法微調）"};
-    let best = -2, bestL = base;
-    const score = (lo, hi, step) => { const a = nccScan(gm, gc, lo, hi, m, step), b = nccScan(am, ac, lo, hi, m, step);
-      a.forEach((v, i) => { const r = (v + b[i]) / 2; if (r > best){ best = r; bestL = lo + i*step; } }); };
-    if (inRange){
-      score(Math.max(0, base - 5*fs), Math.min(n - m, base + 5*fs), 1);
-    } else {   // 整段搜尋：先降頻 8 倍粗找，再在附近逐點細找
-      const k = 8, g8 = decim(gm, k), a8 = decim(am, k), gc8 = decim(gc, k), ac8 = decim(ac, k), m8 = Math.floor(m / k);
-      const ra = nccScan(g8, gc8, 0, g8.length - m8, m8, 1), rb = nccScan(a8, ac8, 0, a8.length - m8, m8, 1);
-      let bi = 0, bv = -2; ra.forEach((v, i) => { const r = (v + rb[i]) / 2; if (r > bv){ bv = r; bi = i; } });
-      score(Math.max(0, bi*k - 2*k), Math.min(n - m, bi*k + 2*k), 1);
-    }
-    if (best < 0.8) return {start: base, r: best, shiftS: 0,
-      method: inRange ? `只用 Time（訊號比對相關係數 ${best.toFixed(2)} 太低，可能不是同一次錄製）` : `找不到對應位置（相關 ${best.toFixed(2)}），先放在開頭`};
-    return {start: bestL, r: best, shiftS: inRange ? (bestL - base) / fs : NaN,
-      method: inRange ? "Time + |GYRO|/|ACC| 比對微調" : "Time 不在範圍內，用 |GYRO|/|ACC| 整段搜尋"};
-  }
-  return { runFusion, alignCalibrated };
+  return { runFusion };
 })();
 if (typeof module !== "undefined") module.exports = IMU;
 
@@ -420,7 +612,7 @@ const CS = (() => {
 
     mk(t, status, extra = {}) {
       return Object.assign({ t, status, hr: NaN, hrTd: NaN, hrNaive: NaN, r: NaN, spo2Raw: NaN, spo2Out: NaN, method: "",
-        reason: "", ecgState: "", hrPpg: NaN, profile: "", rOut: NaN, rC: NaN, rCOut: NaN }, extra);
+        reason: "", ecgState: "", hrPpg: NaN, profile: "", rOut: NaN, rC: NaN, rCOut: NaN, hrEcg: NaN, hrPpgNow: NaN }, extra);
     }
     emit(r, rowIdx) { r.profile = this.profile.label; r.endIdx = rowIdx; this.onResult(r); }
 
@@ -609,6 +801,7 @@ const CS = (() => {
     // ---------------- 每秒計算
     compute(tc, ir, red, bp, bpLow, ax, ay, az, ecgBp, ecgRaw, bpRed) {
       const fs = this.fs, P = this.profile;
+      this._ecgHr = NaN;   // 這一秒 ECG 時域心率（只供顯示比對，不影響計算）
       this.track = this.track.filter(x => !(tc - x[0] > TRACK_S));
       this.trackPpg = this.trackPpg.filter(x => !(tc - x[0] > TRACK_S));
       this.ecgStatusText = ecgBp == null ? "未提供" : "";
@@ -645,6 +838,7 @@ const CS = (() => {
       const leadOff = ecgRaw != null && ChestSpO2.longestZeroRun(ecgRaw) >= Math.trunc(ECG_ZERO_RUN_S * fs);
       const ecgBeats = useEcg && !leadOff ? this.detectEcgBeats(ecgBp) : [];
       let [hrTd, tdOk] = useEcg ? tdFrom(ecgBeats) : ppgTd;
+      if (useEcg && tdOk) this._ecgHr = 60 * hrTd;
       let confirming = false;
       if (useEcg) {
         if (tdOk && (isNaN_(this.ecgStreakHz) || Math.abs(hrTd - this.ecgStreakHz) <= tol)) this.ecgStreak++;
@@ -720,7 +914,8 @@ const CS = (() => {
       this.histC = this.histC.filter(x => !(tc - x[0] > SMOOTH_S));
       this.lastRCOut = this.histC.length ? median(this.histC.map(x => x[1])) : NaN;
       return this.mk(tc, status, { hr: 60 * fHr, hrTd: 60 * hrTd, hrNaive: 60 * fNaive, r, spo2Raw, spo2Out: this.lastOut,
-        method, reason, ecgState: this.ecgStatusText, hrPpg: this.lastPpgHr, rOut: this.lastROut, rC, rCOut: this.lastRCOut });
+        method, reason, ecgState: this.ecgStatusText, hrPpg: this.lastPpgHr, rOut: this.lastROut, rC, rCOut: this.lastRCOut,
+        hrEcg: this._ecgHr ?? NaN, hrPpgNow: 60 * fPpg });
     }
   }
   return { ChestSpO2, PROFILES, calibrate };
@@ -739,6 +934,38 @@ function sosfilt(sos, x){ // 單向（與 App 即時濾波相同），扣掉第�
   for (let i=0;i<x.length;i++){ let v = x[i]-off;
     for (let s=0;s<sos.length;s++){ const c=sos[s], z=st[s]; const o=c[0]*v+z[0]; z[0]=c[1]*v-c[4]*o+z[1]; z[1]=c[2]*v-c[5]*o; v=o; }
     y[i]=v; }
+  return y;
+}
+// ===== 同 App 畫面：逐行移植 App 的 UI 濾波（Kotlin Float → 用 Math.fround 模擬 32 位元運算，結果逐筆相同）
+const F32 = Math.fround;
+// ECG：DataLogViewModel.insertECG(FloatArray) → adcToVoltage() → highPass005() → smoothEcg(SMOOTH_WIN = 1，等於不變)
+//   輸入是 CSV 的 ECG 欄（= MainActivity 的 ecgProcessed = -ecgRaw，也就是 App 送進 insertECG 的值）
+function ecgAppDisplay(x){
+  const y = new Float32Array(x.length), A = F32(0.99877), K1000 = F32(1000), DEN = F32(F32(131072) * F32(20)), LIM = F32(5);
+  let hx = 0, hy = 0;
+  for (let i=0;i<x.length;i++){
+    if (!Number.isFinite(x[i])){ y[i] = hy; continue; }
+    const v = F32(F32(F32(x[i]) * K1000) / DEN);            // adcCount * 1000f / (131072f * 20f)
+    hy = F32(A * F32(F32(hy + v) - hx)); hx = v;             // hpY = HP_ALPHA * (hpY + x - hpX)
+    if (Math.abs(hy) > LIM) hy = 0;                          // 偏離太大時快速回復基線
+    y[i] = hy;
+  }
+  return y;
+}
+// PPG：MainActivity 的 ppgIrLpForUI / ppgRedLpForUI（App 畫面畫的就是這個，PPG_OFFSET = 0）
+//   基線 MA（BASELINE_ALPHA 0.002）→ 一階高通（HPF_ALPHA 0.975）→ UI 低通（UI_LPF_ALPHA 0.05）
+function ppgAppDisplay(x){
+  const y = new Float32Array(x.length), BA = F32(0.002), HA = F32(0.975), LA = F32(0.05);
+  let base = 0, hp = 0, prev = 0, ui = 0;
+  for (let i=0;i<x.length;i++){
+    if (!Number.isFinite(x[i])){ y[i] = ui; continue; }
+    const raw = F32(x[i]);
+    base = F32(base + F32(BA * F32(raw - base)));            // ppgIrBaselineMA += BASELINE_ALPHA * (raw - MA)
+    const xb = F32(raw - base);                              // ppgIrProcessForBaseline
+    hp = F32(HA * F32(F32(hp + xb) - prev)); prev = xb;       // ppgIrHpZ = HPF_ALPHA * (HpZ + x - prev)
+    ui = F32(ui + F32(LA * F32(hp - ui)));                    // ppgIrLpForUI += UI_LPF_ALPHA * (afterHp - LpForUI)
+    y[i] = ui;
+  }
   return y;
 }
 function parse(text){
@@ -781,8 +1008,142 @@ function parse(text){
     const f = IMU.runFusion(t, cols.ACC_X, cols.ACC_Y, cols.ACC_Z, cols.GYRO_X, cols.GYRO_Y, cols.GYRO_Z, knownBias);
     imu = {Q: f.Q, valid: f.valid, bias: knownBias, biasRow, calibDoneTime: f.calibDoneTime, finalBias: f.bias};
   }
+  const ecgDisp = hasEcg ? ecgAppDisplay(cols.ECG) : null;
   return {n, fmt, t, cols, gaps, back, meta, hasEcg, imu,
-    irBp: sosfilt(SOS_PPG, cols.PPG_IR), redBp: sosfilt(SOS_PPG, cols.PPG_RED), ecgBp: hasEcg ? sosfilt(SOS_ECG, cols.ECG) : null};
+    irBp: ppgAppDisplay(cols.PPG_IR), redBp: ppgAppDisplay(cols.PPG_RED), ecgBp: ecgDisp,
+    beats: hasEcg ? detectR(cols.ECG, ecgDisp) : new Int32Array(0)};
+}
+// ---------------- ECG R 波偵測（Pan-Tompkins：5–20 Hz 帶通 → 微分 → 平方 → 150 ms 移動積分 → 自適應門檻 → 250 ms 不反應期）
+//   位置最後校正到 App 畫面同一條 mV 訊號的波峰；離身（原始值連續為 0）的區段不偵測
+function detectR(ecg, disp, gapRows){
+  const n = ecg.length, fs = FS; if (n < fs * 3) return new Int32Array(0);
+  const bp = sosfilt(SOS_ECG, Float64Array.from(ecg, v => Number.isFinite(v) ? v : 0));
+  const sq = new Float32Array(n);
+  for (let i=2;i<n-2;i++){ const d = (2*bp[i+1] + bp[i+2] - bp[i-2] - 2*bp[i-1]) / 8; sq[i] = d*d; }
+  const W = Math.round(0.15 * fs), mwi = new Float32Array(n); let acc = 0;
+  for (let i=0;i<n;i++){ acc += sq[i]; if (i >= W) acc -= sq[i-W]; mwi[i] = acc / W; }
+  // 門檻：每 2.5 秒一格，取前後 5 秒內 MWI 的 98 百分位 × 0.3（大雜訊只影響附近幾秒）
+  const B = Math.round(2.5 * fs), nb = Math.ceil(n / B), thrB = new Float32Array(nb);
+  for (let b=0;b<nb;b++){ const a0 = Math.max(0, (b-1)*B), a1 = Math.min(n, (b+2)*B), v = [];
+    for (let i=a0;i<a1;i+=4) v.push(mwi[i]); v.sort((x,y)=>x-y); thrB[b] = 0.3 * (v[Math.floor(v.length*.98)] || 0); }
+  // 離身：原始 ECG 連續 0 的樣本
+  const zero = new Uint8Array(n); { let run = 0; for (let i=0;i<n;i++){ run = ecg[i] === 0 ? run + 1 : 0; if (run >= 26) for (let k=i-run+1;k<=i;k++) zero[k] = 1; } }
+  // 極性：用整段最大的幾個波決定 R 波朝上或朝下（畫面上的 mV 訊號）
+  const ref = disp || bp;
+  const cand = [], REF = Math.round(0.25 * fs);
+  let last = -REF;
+  for (let i=1;i<n-1;i++){
+    const th = thrB[Math.floor(i / B)];
+    if (!(mwi[i] > th && mwi[i] >= mwi[i-1] && mwi[i] > mwi[i+1]) || th <= 0) continue;
+    // 在 MWI 峰前 200 ms～後 50 ms 找帶通訊號絕對值最大處
+    let best = -1, bv = -1;
+    for (let k=Math.max(0, i - Math.round(0.2*fs)); k<=Math.min(n-1, i + Math.round(0.05*fs)); k++){ const a = Math.abs(bp[k]); if (a > bv){ bv = a; best = k; } }
+    if (best < 0 || zero[best]) continue;
+    if (best - last < REF){ if (bv > Math.abs(bp[cand[cand.length-1]])) { cand[cand.length-1] = best; last = best; } continue; }
+    cand.push(best); last = best;
+  }
+  // 極性：每一拍在附近找畫面訊號絕對值最大的點，看它朝上還是朝下（R 波通常是最大的那個波）
+  let pos = 0, neg = 0;
+  for (const c of cand){ let mk = c, mv = -1;
+    for (let k=Math.max(0, c - Math.round(0.12*fs)); k<=Math.min(n-1, c + Math.round(0.04*fs)); k++){ const a = Math.abs(ref[k]); if (a > mv){ mv = a; mk = k; } }
+    if (ref[mk] >= 0) pos++; else neg++; }
+  // 單向帶通會讓波峰往後延遲，所以在帶通峰值「往前 120 ms～往後 40 ms」內找畫面訊號真正的 R 波頂點
+  const sgn = pos >= neg ? 1 : -1, RB = Math.round(0.12 * fs), RA = Math.round(0.04 * fs);
+  const out = new Int32Array(cand.length);
+  for (let j=0;j<cand.length;j++){ const c = cand[j]; let b = c, bv = -Infinity;
+    for (let k=Math.max(0, c-RB); k<=Math.min(n-1, c+RA); k++){ const v = sgn * ref[k]; if (v > bv){ bv = v; b = k; } }
+    out[j] = b; }
+  return out;
+}
+// ---------------- 校正 CSV（從校正那一刻開始錄）→ 在主 CSV 中找起點
+function lowerBound(a, x){ let lo = 0, hi = a.length; while (lo < hi){ const m = (lo+hi)>>1; if (a[m] < x) lo = m+1; else hi = m; } return lo; }
+function parseCalib(text){
+  text = text.replace(/^﻿/, "");
+  const nl = text.indexOf("\n");
+  const hdr = text.slice(0, nl).split(",").map(s=>s.trim().replace(/\r$/,""));
+  const names = ["Time","PPG_IR","PPG_RED","ACC_X","ACC_Y","ACC_Z","GYRO_X","GYRO_Y","GYRO_Z"];
+  const idx = names.map(n=>hdr.indexOf(n));
+  if (idx.slice(3).some(j=>j<0)) throw new Error("校正 CSV 缺少 ACC_X/Y/Z 或 GYRO_X/Y/Z 欄位");
+  const bIdx = ["GyroBiasX","GyroBiasY","GyroBiasZ"].map(nm=>hdr.indexOf(nm));
+  const lines = text.slice(nl+1).split("\n");
+  let n = 0; for (const l of lines) if (l.trim()) n++;
+  const cols = {}; for (const nm of names) cols[nm] = new Float64Array(n);
+  let bias = null, biasRow = -1, r = 0;
+  for (const l of lines){
+    if (!l.trim()) continue;
+    const c = l.split(",");
+    for (let k=0;k<names.length;k++){ const j = idx[k]; cols[names[k]][r] = j<0 ? NaN : parseFloat(c[j]); }
+    if (!bias && bIdx.every(j=>j>=0)){ const b = bIdx.map(j=>parseFloat(c[j])); if (b.every(Number.isFinite)){ bias = b; biasRow = r; } }
+    r++;
+  }
+  if (n < FS) throw new Error("校正 CSV 太短（不到 1 秒）");
+  // 校正 CSV 自己的時間軸（從 0 開始）；Time 在 1/256 格點上且不倒退就照用（保留掉包），否則用 列號/256
+  const T = cols.Time; let ok = Number.isFinite(T[0]);
+  for (let i=1;i<n && ok;i++) if (!(T[i] > T[i-1]) || Math.abs(T[i]*FS - Math.round(T[i]*FS)) > 0.01) ok = false;
+  const t = new Float64Array(n); for (let i=0;i<n;i++) t[i] = ok ? T[i] - T[0] : i/FS;
+  return {n, t, cols, bias, biasRow, hasPpg: idx[1] >= 0 && idx[2] >= 0, T0: T[0], timeOk: ok};
+}
+function alignCalib(C){
+  const m = D.cols, n = D.n, c = C.cols;
+  // PPG 樣板：校正 CSV 中 PPG 有在變化的一小段（不受 IMU 校正旋轉影響，同一次錄製的值會完全相同）
+  const K = Math.min(64, C.n);
+  let k0 = -1;
+  if (C.hasPpg) for (let st=0; st+K<=C.n; st+=K){
+    let lo = Infinity, hi = -Infinity, fin = true;
+    for (let k=0;k<K;k++){ const v = c.PPG_IR[st+k]; if (!Number.isFinite(v)){ fin = false; break; } if (v<lo) lo=v; if (v>hi) hi=v; }
+    if (fin && hi > lo){ k0 = st; break; }
+  }
+  const match = i => { if (k0 < 0 || i < 0 || i + K > n) return 0; let h = 0;
+    for (let k=0;k<K;k++) if (m.PPG_IR[i+k] === c.PPG_IR[k0+k] && m.PPG_RED[i+k] === c.PPG_RED[k0+k]) h++; return h/K; };
+  // 1) Time：校正 CSV 的 Time 和主 CSV 是同一條時間軸（例如從 28.71 s 開始）→ 直接找，再用 PPG 在 ±2 秒內確認
+  if (C.timeOk && D.fmt === "new" && C.T0 >= D.t[0] - 1 && C.T0 <= D.t[n-1]){
+    const i0 = lowerBound(D.t, C.T0 - 0.5/FS);
+    if (k0 < 0 && C.T0 >= 1) return {row: i0, method: "依 Time", score: NaN, ok: true};
+  }
+  if (k0 >= 0 && C.timeOk && D.fmt === "new" && C.T0 >= D.t[0] - 1 && C.T0 <= D.t[n-1]){
+    const i0 = lowerBound(D.t, C.T0 - 0.5/FS);
+    const it = lowerBound(D.t, C.T0 + C.t[k0] - 0.5/FS);
+    let best = it, bs = 0;
+    for (let s=0; s<=2*FS && bs < 1; s++) for (const d of s ? [s, -s] : [0]){ const sc = match(it + d); if (sc > bs){ bs = sc; best = it + d; } }
+    if (bs >= 0.8) return {row: Math.max(0, i0 + (best - it)), method: "Time＋PPG 確認", score: bs, ok: true};
+    return {row: i0, method: "依 Time（PPG 對不上，請確認是否為同一次錄製）", score: bs, ok: false};
+  }
+  // 2) Time 不能用（舊版 CSV 或超出範圍）→ 整段搜尋 PPG 原始值
+  if (k0 >= 0){
+    const a0 = c.PPG_IR[k0], b0 = c.PPG_RED[k0];
+    for (let i=0;i+K<=n;i++){
+      if (m.PPG_IR[i] !== a0 || m.PPG_RED[i] !== b0) continue;
+      const sc = match(i); if (sc >= 0.8) return {row: Math.max(0, i - k0), method: "PPG 原始值比對", score: sc, ok: true};
+    }
+  }
+  // 2) |ACC|、|GYRO|（對旋轉不變）降採樣到 32 Hz 後做正規化互相關
+  const DS = 8, L = Math.min(Math.floor(C.n/DS), 30*FS/DS), Nb = Math.floor(n/DS);
+  if (L < 32 || Nb < L) return null;
+  const feat = (ax, ay, az, cnt) => { const o = new Float64Array(cnt);
+    for (let b=0;b<cnt;b++){ let s=0, q=0; for (let k=0;k<DS;k++){ const i=b*DS+k, v=Math.hypot(ax[i],ay[i],az[i]); if (Number.isFinite(v)){ s+=v; q++; } } o[b] = q ? s/q : 0; } return o; };
+  const zs = a => { let s=0; for (const v of a) s+=v; const mu=s/a.length; let ss=0; for (const v of a) ss+=(v-mu)*(v-mu); const sd=Math.sqrt(ss/a.length)||1; return a.map(v=>(v-mu)/sd); };
+  const pairs = [[zs(feat(c.ACC_X,c.ACC_Y,c.ACC_Z,L)), feat(m.ACC_X,m.ACC_Y,m.ACC_Z,Nb)], [zs(feat(c.GYRO_X,c.GYRO_Y,c.GYRO_Z,L)), feat(m.GYRO_X,m.GYRO_Y,m.GYRO_Z,Nb)]];
+  const corr = new Float64Array(Nb - L + 1);
+  for (const [a, b] of pairs){
+    const P = new Float64Array(Nb+1), P2 = new Float64Array(Nb+1);
+    for (let i=0;i<Nb;i++){ P[i+1]=P[i]+b[i]; P2[i+1]=P2[i]+b[i]*b[i]; }
+    for (let o=0;o<=Nb-L;o++){
+      const mu = (P[o+L]-P[o])/L, sd = Math.sqrt(Math.max(1e-12, (P2[o+L]-P2[o])/L - mu*mu));
+      let d = 0; for (let k=0;k<L;k++) d += a[k]*b[o+k];
+      corr[o] += d / (L*sd) / pairs.length;
+    }
+  }
+  let best = 0; for (let o=1;o<corr.length;o++) if (corr[o] > corr[best]) best = o;
+  return {row: best*DS, method: "|ACC|、|GYRO| 波形互相關", score: corr[best], ok: corr[best] >= 0.5};
+}
+function calib(text){
+  if (!D) throw new Error("請先載入主 CSV");
+  const C = parseCalib(text);
+  const c = C.cols;
+  const f = IMU.runFusion(C.t, c.ACC_X, c.ACC_Y, c.ACC_Z, c.GYRO_X, c.GYRO_Y, c.GYRO_Z, C.bias);
+  const al = alignCalib(C);
+  postMessage({type:"calib", c:{n:C.n, t:C.t, Q:f.Q, valid:f.valid, bias:C.bias, biasRow:C.biasRow, calibDoneTime:f.calibDoneTime,
+    acc:[c.ACC_X, c.ACC_Y, c.ACC_Z], gyro:[c.GYRO_X, c.GYRO_Y, c.GYRO_Z], align: al}});
 }
 function run(opt){
   const res = [], c = D.cols;
@@ -801,22 +1162,14 @@ onmessage = e => {
   try {
     if (m.type === "load"){
       D = parse(m.text);
-      const out = {n:D.n, fmt:D.fmt, t:D.t, gaps:D.gaps, back:D.back, meta:D.meta, hasEcg:D.hasEcg, imu:D.imu, cols:{}, irBp:D.irBp, redBp:D.redBp, ecgBp:D.ecgBp};
+      const out = {n:D.n, fmt:D.fmt, t:D.t, gaps:D.gaps, back:D.back, meta:D.meta, hasEcg:D.hasEcg, imu:D.imu, cols:{}, irBp:D.irBp, redBp:D.redBp, ecgBp:D.ecgBp, beats:D.beats};
       for (const k in D.cols) if (k !== "Time") out.cols[k] = D.cols[k].slice();
       const tr = [out.t.buffer.slice(0)]; out.t = new Float64Array(tr[0]);
       postMessage({type:"data", d: out});
       run(m.opt);
     } else if (m.type === "run"){ run(m.opt); }
-    else if (m.type === "cal"){
-      if (!D) throw new Error("請先開主 CSV");
-      const C = parse(m.text), cc = C.cols;
-      if (!C.imu) throw new Error("校正 CSV 沒有 ACC/GYRO 欄位");
-      const al = IMU.alignCalibrated(D.t, [D.cols.ACC_X, D.cols.ACC_Y, D.cols.ACC_Z], [D.cols.GYRO_X, D.cols.GYRO_Y, D.cols.GYRO_Z],
-        C.t[0], [cc.ACC_X, cc.ACC_Y, cc.ACC_Z], [cc.GYRO_X, cc.GYRO_Y, cc.GYRO_Z]);
-      postMessage({type: "cal", cal: {n: C.n, Q: C.imu.Q, valid: C.imu.valid, bias: C.imu.bias, biasRow: C.imu.biasRow, align: al,
-        start: al.start, tStart: D.t[al.start], acc: [cc.ACC_X, cc.ACC_Y, cc.ACC_Z], gyr: [cc.GYRO_X, cc.GYRO_Y, cc.GYRO_Z]}});
-    }
-  } catch (err) { postMessage({type: m.type === "cal" ? "calError" : "error", msg: String(err && err.message || err)}); }
+    else if (m.type === "calib"){ calib(m.text); }
+  } catch (err) { postMessage({type: m.type === "calib" ? "calibError" : "error", msg: String(err && err.message || err)}); }
 };
 </script>
 
@@ -825,19 +1178,159 @@ onmessage = e => {
 const $ = id => document.getElementById(id);
 const FS = 256;
 const worker = new Worker(URL.createObjectURL(new Blob([$("alg-src").textContent, "\n", $("imu-src").textContent, "\n", $("worker-src").textContent], {type:"text/javascript"})));
-let D = null, RES = [], RES_T = null, fileName = "", CAL = null, calName = "";
+let D = null, RES = [], RES_T = null, fileName = "";
+let CAL = null, calText = null, calName = "", calStart = null;   // 校正 CSV
+let winSec = 10, waveView = "all";   // 波形視窗秒數（連續值，滾輪/捏合平滑縮放）
 let cur = 0, playing = false, lastTs = 0;
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const FONT = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif';
+const _css = new Map();
+const css = n => { let v = _css.get(n); if (v === undefined){ v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); _css.set(n, v); } return v; };
+// 文字沒變就不寫 DOM（避免每幀重排版）
+const txt = (id, s) => { const el = $(id); if (el.textContent !== s) el.textContent = s; };
+// 平滑動畫狀態：縱軸範圍、縮放
+let winTarget = 10, frameDt = 16, lastFrameT = 0, animating = false;
 
-// ---------------- 檔案
-const drop = $("drop"), fileIn = $("file");
-drop.onclick = () => fileIn.click();
-fileIn.onchange = () => fileIn.files[0] && loadFile(fileIn.files[0]);
+// ---------------- 檔案（可一次加入很多 CSV／整個資料夾；主檔與校正檔依檔名時間自動配對）
+const drop = $("drop"), fileIn = $("file"), dirMain = $("dirMain"), dirCal = $("dirCal");
+const LIB = {mains: [], cals: []};
+LIB.dirs = {main: "", cal: ""};
+let curEntry = null;
+// 檔名時間：主檔 data_2026-10-29_15-03-55_*.csv；校正檔 data_calibrated_20261029_150425.csv
+function nameTime(name){
+  let m = name.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/) || name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  return m ? new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]).getTime() : null;
+}
+const isCalName = n => /calibrat/i.test(n);
+// 校正檔第一列的 Time（= 主檔時間軸上的秒數）：只讀檔案開頭，不讀整個檔
+async function firstTime(f){
+  try {
+    const head = (await f.slice(0, 8192).text()).replace(/^\uFEFF/, "").split(/\r?\n/);
+    const ti = head[0].split(",").map(x => x.trim()).indexOf("Time");
+    for (let k = 1; k < head.length - 1; k++){ const v = parseFloat((head[k].split(",")[ti] || "")); if (ti >= 0 && Number.isFinite(v)) return v; }
+  } catch (e) {}
+  return NaN;
+}
+const isMainName = n => /\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/.test(n) && !isCalName(n);
+// src = "main"（一般資料夾：換掉原本的主檔清單）、"cal"（校正資料夾：換掉原本的校正清單）、"mix"（依檔名分類，累加）
+async function addFiles(files, src = "mix"){
+  const dir = files.length && files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "";
+  if (src === "main"){ LIB.mains = []; LIB.dirs.main = dir; }
+  if (src === "cal"){ LIB.cals = []; LIB.dirs.cal = dir; }
+  let added = 0;
+  for (const f of files){
+    if (!/\.csv$/i.test(f.name)) continue;
+    const cal = src === "cal" ? !isMainName(f.name) : isCalName(f.name), list = cal ? LIB.cals : LIB.mains;
+    if (list.some(x => x.file.name === f.name && x.file.size === f.size)) continue;
+    list.push({file: f, name: f.name, t: nameTime(f.name), cals: [], T0: cal ? await firstTime(f) : NaN}); added++;
+  }
+  pairLib(); renderLib();
+  if (!added && src === "mix") return;
+  if (src !== "mix" && !files.some(f => /\.csv$/i.test(f.name))) alert(`資料夾「${dir}」裡沒有 CSV 檔`);
+  if (curEntry && !LIB.mains.includes(curEntry)) curEntry = null;
+  if (!D && LIB.mains.length){ loadEntry(LIB.mains[0]); return; }
+  if (!curEntry && D && src === "main" && LIB.mains.length){ loadEntry(LIB.mains[0]); return; }
+  // 目前這筆剛配到校正檔（例如後開校正資料夾）→ 自動套上
+  if (curEntry && curEntry.cals[0] && calName !== curEntry.cals[0].name){ calName = curEntry.cals[0].name; calText = await curEntry.cals[0].file.text(); sendCalib(); }
+  else if (!LIB.mains.length && LIB.cals.length && !D) $("drop").querySelector("strong").textContent = "只有校正 CSV，請再加入主要 CSV";
+}
+// 配對規則：
+//  1) 校正檔的 Time 欄是主檔的時間軸（例如從 28.71 s 開始）→「校正檔名時間 − 第一列 Time」= 主檔開始時間，
+//     找開始時間在 ±15 秒內的主檔（就算兩台手機同時錄也不會配錯）
+//  2) 沒有 Time 可用時，退而求其次：開始時間早於校正檔、且最接近的主檔（6 小時內），標為「僅依檔名推測」
+//  載入時還會再用 Time＋PPG 原始值逐筆確認，對不上會警告
+function pairLib(){
+  LIB.mains.sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity) || a.name.localeCompare(b.name));
+  for (const m of LIB.mains) m.cals = [];
+  LIB.unpaired = [];
+  for (const c of LIB.cals){
+    let best = null; c.how = "";
+    if (c.t != null && Number.isFinite(c.T0) && c.T0 >= 0){
+      const target = c.t - c.T0 * 1000;
+      for (const m of LIB.mains) if (m.t != null && Math.abs(m.t - target) <= 15000 && (!best || Math.abs(m.t - target) < Math.abs(best.t - target))) best = m;
+      if (best){ c.how = "time"; for (const m of LIB.mains) if (m !== best && m.t === best.t) m.cals.push(c); }
+    }
+    if (!best && c.t != null && !(Number.isFinite(c.T0) && c.T0 >= 1)){
+      for (const m of LIB.mains) if (m.t != null && m.t <= c.t + 5000 && c.t - m.t <= 6*3600e3 && (!best || m.t > best.t)) best = m;
+      if (best){ c.how = "name"; for (const m of LIB.mains) if (m !== best && m.t === best.t) m.cals.push(c); }
+    }
+    if (best) best.cals.push(c); else LIB.unpaired.push(c);
+  }
+  for (const m of LIB.mains) m.cals.sort((a, b) => a.t - b.t);
+}
+const fmtT = t => { if (t == null) return "（檔名無時間）"; const d = new Date(t), p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function renderLib(){
+  const show = LIB.mains.length + LIB.cals.length > 1 || !!LIB.dirs.main || !!LIB.dirs.cal;
+  $("libCard").classList.toggle("hide", !show);
+  const nCal = LIB.mains.filter(m => m.cals.length).length;
+  $("libSum").textContent = `${LIB.mains.length} 筆錄製 · ${nCal} 筆有校正`;
+  $("libDirs").textContent = `一般 CSV 資料夾：${LIB.dirs.main || "（未開啟）"}（${LIB.mains.length} 個）　·　校正 CSV 資料夾：${LIB.dirs.cal || "（未開啟）"}（${LIB.cals.length} 個）`;
+  $("libRows").innerHTML = LIB.mains.map((m, i) => {
+    const c = m.cals[0], dt = c && m.t != null ? Math.round((c.t - m.t) / 1000) : null;
+    const cal = c ? `<span class="lc${c.how === "time" ? " ok" : " guess"}" title="${esc(c.name)}">${c.how === "time" ? "✓" : "？"} 校正：${esc(c.name)}${dt != null ? `（開始後 ${dt} 秒）` : ""}${c.how === "time" ? "" : "・僅依檔名推測"}${m.cals.length > 1 ? `，另有 ${m.cals.length - 1} 個` : ""}` +
+                    `<button type="button" class="rm" data-rmc="${LIB.cals.indexOf(c)}" title="把這個校正 CSV 從清單移除（電腦裡的檔案不會被刪除）">✕</button></span>`
+                  : `<span class="lc">無校正</span>`;
+    return `<div class="librow${m === curEntry ? " cur" : ""}" data-i="${i}"><span class="lt">${fmtT(m.t)}</span><span class="ln" title="${esc(m.name)}">${esc(m.name)}</span>${cal}` +
+           `<button type="button" class="rm" data-rm="${i}" title="從清單移除（電腦裡的檔案不會被刪除）">移除</button></div>`;
+  }).join("") + (LIB.unpaired.length ? `<div class="libnote">找不到對應主檔的校正 CSV（它的開始時間對不上任何一筆主檔）：${LIB.unpaired.map(c => esc(c.name)).join("、")}</div>` : "");
+  const i = LIB.mains.indexOf(curEntry);
+  $("libPrev").disabled = i <= 0; $("libNext").disabled = i < 0 || i >= LIB.mains.length - 1;
+}
+async function loadEntry(m){
+  curEntry = m; renderLib();
+  // 配對到的校正檔先讀好；主檔載入完成後會自動送去對齊（沒有校正就清掉上一筆的）
+  if (m.cals.length){ calName = m.cals[0].name; calText = await m.cals[0].file.text(); }
+  else { calName = ""; calText = null; }
+  loadFile(m.file);
+}
+// 從清單移除：只是不顯示，電腦裡的檔案完全不動（重新開資料夾就會再出現）
+$("libRows").addEventListener("click", e => {
+  const rm = e.target.closest(".rm");
+  if (rm){
+    e.stopPropagation();
+    if (rm.dataset.rm != null){
+      const m = LIB.mains[+rm.dataset.rm]; LIB.mains.splice(+rm.dataset.rm, 1);
+      if (m === curEntry) curEntry = null;            // 畫面上的資料保留，只是不在清單裡
+    } else {
+      const c = LIB.cals[+rm.dataset.rmc]; LIB.cals.splice(+rm.dataset.rmc, 1);
+      if (curEntry && curEntry.cals.includes(c) && CAL && calName === c.name) $("calClear").click();
+    }
+    pairLib(); renderLib(); return;
+  }
+  const r = e.target.closest(".librow"); if (r) loadEntry(LIB.mains[+r.dataset.i]);
+});
+$("libPrev").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i > 0) loadEntry(LIB.mains[i-1]); };
+$("libNext").onclick = () => { const i = LIB.mains.indexOf(curEntry); if (i >= 0 && i < LIB.mains.length - 1) loadEntry(LIB.mains[i+1]); };
+// 拖進來的資料夾要逐層讀出檔案
+async function filesFromDrop(dt){
+  const entries = [...(dt.items || [])].map(it => it.webkitGetAsEntry ? it.webkitGetAsEntry() : null).filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const out = [];
+  const walk = async en => {
+    if (en.isFile) out.push(await new Promise((res, rej) => en.file(res, rej)));
+    else if (en.isDirectory){ const rd = en.createReader(); let batch;
+      do { batch = await new Promise((res, rej) => rd.readEntries(res, rej)); for (const e of batch) await walk(e); } while (batch.length); }
+  };
+  for (const en of entries) await walk(en);
+  return out;
+}
+$("pickFiles").onclick = e => { e.preventDefault(); fileIn.click(); };
+$("pickMainDir").onclick = () => dirMain.click();
+$("pickCalDir").onclick = () => dirCal.click();
+$("libMainDir").onclick = () => dirMain.click();
+$("libCalDir").onclick = () => dirCal.click();
+$("openBtn").onclick = () => dirMain.click();
+$("calDirBtn").onclick = () => dirCal.click();
+fileIn.onchange = () => { addFiles([...fileIn.files], "mix"); fileIn.value = ""; };
+dirMain.onchange = () => { addFiles([...dirMain.files], "main"); dirMain.value = ""; };
+dirCal.onchange = () => { addFiles([...dirCal.files], "cal"); dirCal.value = ""; };
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
-["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", e => e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove("over")));
 document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop", e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+document.addEventListener("drop", e => { e.preventDefault(); filesFromDrop(e.dataTransfer).then(addFiles); });
+// 已載入資料時，重新整理或關閉分頁前先確認（瀏覽器會用它自己的提示文字）
+window.addEventListener("beforeunload", e => { if (D){ e.preventDefault(); e.returnValue = ""; } });
 
 const opts = () => ({profile:$("profile").value, settle:+$("settle").value||0, useEcg:$("useEcg").checked, resetGap:$("resetGap").checked});
 function loadFile(f){
@@ -847,57 +1340,62 @@ function loadFile(f){
   rd.onload = () => worker.postMessage({type:"load", text: rd.result, opt: opts()});
   rd.readAsText(f);
 }
+function showFormula(){
+  const P = CS.PROFILES[$("profile").value], n = v => Math.abs(v).toFixed(4).replace(/\.?0+$/, "");
+  const R = P.rOffset ? `(R − ${P.rOffset})` : "R";
+  $("formulaText").textContent = `SpO2 = ${n(P.a)}·${R}² ${P.b < 0 ? "−" : "+"} ${n(P.b)}·${R} ${P.c < 0 ? "−" : "+"} ${n(P.c)}`;
+}
+showFormula(); $("profile").addEventListener("change", showFormula);
 $("rerun").onclick = () => { if (D){ showProg(0); worker.postMessage({type:"run", opt: opts()}); } };
 ["profile","useEcg","resetGap"].forEach(id => $(id).addEventListener("change", () => $("rerun").click()));
 $("settle").addEventListener("change", () => $("rerun").click());
 
-// ---------------- 校正 CSV（兩點校正後的 IMU）：從對齊到的時間點起取代主 CSV 的 IMU
+// ---------------- 校正 CSV
+function sendCalib(){ calUi("處理中…"); worker.postMessage({type:"calib", text: calText}); }
+// 狀態與原因：用醫生看得懂的說法，但一定對應演算法當下真正判定的原因（不捏造）
+const REL = {UPDATE: {name: "可信", col: "--ok"}, HOLD: {name: "參考值", col: "--hold"}, NO_OUTPUT: {name: "無法判讀", col: "--bad"}, WARMUP: {name: "暖機中", col: "--warm"}};
+const REASON_MAP = [[/動作/, "身體晃動"], [/離身|DC/, "感測器可能未貼好"], [/心跳峰不明顯/, "脈搏訊號太弱"], [/不同步/, "光訊號不穩定"],
+  [/R 過高|R 值異常/, "訊號品質不佳"], [/時域|頻域|頻譜|追蹤|ECG|心率/, "心跳判讀不穩定"], [/穩定中|累積/, "感測器穩定中"]];
+function friendly(reason){
+  if (!reason) return "";
+  const out = [];
+  for (const part of reason.split("、")){ const m = REASON_MAP.find(([re]) => re.test(part)); const t = m ? m[1] : "訊號品質不佳"; if (!out.includes(t)) out.push(t); }
+  return out.join("、");
+}
+// 讀值卡用的短版（一行放得下）；完整說明放在滑鼠提示
+function relShort(r){
+  const why = friendly(r.reason);
+  if (r.status === "HOLD") return "沿用前次讀數" + (why ? "・" + why : "");
+  if (r.status === "NO_OUTPUT") return why || "目前無法判讀";
+  if (r.status === "WARMUP") return "感測器穩定中";
+  return "";
+}
+function relText(r){
+  const why = friendly(r.reason);
+  if (r.status === "HOLD") return `訊號暫時不穩${why ? `（${why}）` : ""}，顯示的是前一次可信讀數`;
+  if (r.status === "NO_OUTPUT") return `目前無法判讀${why ? `（${why}）` : ""}`;
+  if (r.status === "WARMUP") return "感測器穩定中，稍後開始輸出";
+  return "";
+}
+const CAL_HINT = "從校正那一刻開始錄的檔案，上傳後會自動找到開始時間";
+function calUi(msg, full, state){
+  $("calStart").disabled = $("calClear").disabled = !CAL;
+  $("calStart").value = CAL && calStart != null ? calStart.toFixed(2) : "";
+  $("calInfo").textContent = msg || (calText ? $("calInfo").textContent : CAL_HINT);
+  $("calInfo").title = full || "";
+  const st = $("calStep"); st.classList.toggle("has", !!CAL); st.classList.toggle("done", state === "ok"); st.classList.toggle("warn", state === "warn");
+  $("calBtn").textContent = CAL ? "換檔案" : "上傳校正 CSV"; $("calBtn").classList.toggle("primary", !CAL);
+}
 $("calBtn").onclick = () => $("calFile").click();
-$("calFile").onchange = () => { const f = $("calFile").files[0]; if (f) loadCal(f); $("calFile").value = ""; };
-$("calClear").onclick = () => setCal(null);
-function loadCal(f){
-  if (!D) return;
-  calName = f.name; $("calInfo").textContent = "讀取校正 CSV " + f.name + " …"; showProg(0);
-  f.text().then(t => worker.postMessage({type: "cal", text: t}));
-}
-function setCal(c){
-  CAL = c;
-  $("calClear").disabled = !c;
-  const el = $("calInfo");
-  if (!c){ el.classList.remove("on"); el.textContent = "校正 CSV：未載入。上傳兩點校正後的 data_calibrated_*.csv，IMU 會從校正時間點起改用校正 CSV。"; }
-  else {
-    const a = c.align;
-    el.classList.add("on");
-    el.textContent = `校正 CSV：${calName} → 從 t = ${c.tStart.toFixed(2)} s 起 IMU 改用校正 CSV（${(c.n/FS).toFixed(1)} 秒；${a.method}` +
-      (Number.isFinite(a.r) ? `，相關 ${a.r.toFixed(3)}` : "") + (Number.isFinite(a.shiftS) ? `，微調 ${a.shiftS >= 0 ? "+" : ""}${a.shiftS.toFixed(3)} s` : "") + "）" +
-      (c.biasRow === 0 ? "" : "　⚠ 第一筆沒有 GyroBias，可能不是兩點校正後的檔案");
-    if (Number.isFinite(a.r) && a.r < 0.8) alert(a.method + "\n已先依 Time 放在 t = " + c.tStart.toFixed(2) + " s。");
-  }
-  draw();
-}
-// 目前時間要顯示的 IMU：校正時間點之後用校正 CSV，之前用主 CSV
-function imuAt(){
-  if (CAL && cur >= CAL.tStart){
-    const j = Math.round((cur - CAL.tStart) * FS);
-    if (j < CAL.n) return {src: "校正 CSV", q: [CAL.Q[4*j], CAL.Q[4*j+1], CAL.Q[4*j+2], CAL.Q[4*j+3]], valid: !!CAL.valid[j],
-      acc: CAL.acc.map(a => a[j]), gyr: CAL.gyr.map(a => a[j]), cal: true};
-  }
-  const im = D && D.imu; if (!im) return null;
-  const i = Math.min(Math.max(lowerBound(D.t, cur), 0), D.n - 1), c = D.cols;
-  return {src: CAL ? (cur < CAL.tStart ? "主 CSV（校正前，未套用 qCal）" : "主 CSV（校正 CSV 已結束）") : "主 CSV",
-    q: [im.Q[4*i], im.Q[4*i+1], im.Q[4*i+2], im.Q[4*i+3]], valid: !!im.valid[i],
-    acc: [c.ACC_X[i], c.ACC_Y[i], c.ACC_Z[i]], gyr: [c.GYRO_X[i], c.GYRO_Y[i], c.GYRO_Z[i]], cal: false};
-}
-function drawCalMark(ctx, x0, x1, X, top, H){
-  if (!CAL) return;
-  const span = x1 - x0, xa = X.x + (CAL.tStart - x0) / span * X.w, xb = X.x + (CAL.tStart + (CAL.n-1)/FS - x0) / span * X.w;
-  const a = Math.max(X.x, xa), b = Math.min(X.x + X.w, xb);
-  if (b > a){ ctx.fillStyle = css("--cal"); ctx.globalAlpha = .06; ctx.fillRect(a, top, b - a, H); ctx.globalAlpha = 1; }
-  if (xa >= X.x && xa <= X.x + X.w){
-    ctx.strokeStyle = css("--cal"); ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(xa, top); ctx.lineTo(xa, top + H); ctx.stroke();
-    ctx.fillStyle = css("--cal"); ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.fillText("校正開始", xa + 4, top + 12);
-  }
-}
+{ const st = $("calStep");
+  ["dragenter","dragover"].forEach(ev => st.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); st.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => st.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); st.classList.remove("over"); }));
+  st.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (!f || !D) return; calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); }); }
+$("calFile").onchange = () => { const f = $("calFile").files[0]; if (!f || !D) return;
+  calName = f.name; f.text().then(t => { calText = t; sendCalib(); }); $("calFile").value = ""; };
+$("calStart").addEventListener("change", e => { if (!CAL) return; const v = parseFloat(e.target.value);
+  if (Number.isFinite(v)){ calStart = Math.max(tMin(), Math.min(tMax(), v)); e.target.value = calStart.toFixed(2); draw(); } });
+$("calClear").onclick = () => { CAL = null; calText = null; calStart = null; calUi(CAL_HINT); draw(); };
 
 function showProg(f){ $("prog").style.display = "block"; $("prog").firstChild.style.width = (100*f).toFixed(1)+"%"; }
 function hideProg(){ $("prog").style.display = "none"; }
@@ -906,39 +1404,63 @@ worker.onmessage = e => {
   const m = e.data;
   if (m.type === "progress"){ showProg(m.stage === "讀取" ? m.frac*0.3 : 0.3 + m.frac*0.7); }
   else if (m.type === "error"){ hideProg(); $("info").textContent = "錯誤：" + m.msg; }
-  else if (m.type === "calError"){ hideProg(); $("calInfo").textContent = "校正 CSV 讀取失敗：" + m.msg; }
-  else if (m.type === "cal"){ hideProg(); setCal(m.cal); }
   else if (m.type === "data"){
-    D = m.d; cur = Math.min(D.t[D.n-1], D.t[0] + (+$("win").value));
+    D = m.d; cur = Math.min(D.t[D.n-1], D.t[0] + winSec);
+    ECGA = D.hasEcg ? analyzeBeats() : null; lfhfCache = ECGA ? lfhf() : null;
+    annOnLoad();
     const lost = D.gaps.reduce((s,g)=>s+g.missing, 0);
     let s = `${fileName}\n${D.fmt==="new" ? "新版 CSV（Time = 序號/256）" : "舊版 CSV（原始 Time 倒退 "+D.back+" 次，已重建為 列號/256）"} · ${D.n} 樣本（${(D.n/FS).toFixed(1)} s）`;
     if (D.fmt === "new") s += ` · 掉包 ${D.gaps.length} 處，共 ${lost} 樣本（${(100*lost/(D.n+lost)).toFixed(2)}%）`;
     if (!D.hasEcg) s += " · 無 ECG 欄";
     if (D.imu) s += !D.imu.bias ? " · 無 GyroBias（IMU bias 自行估計）" : D.imu.biasRow === 0 ? " · 兩點校正後 IMU CSV（GyroBias 從第一筆有效）" : " · 有 GyroBias（第 " + (D.imu.biasRow+1) + " 筆起；非校正後 CSV）";
     const mt = Object.entries(D.meta).map(([k,v])=>k+"="+v).join("、"); if (mt) s += " · " + mt;
-    $("info").textContent = s;
+    const dur = D.n/FS, mm = Math.floor(dur/60), ss = Math.round(dur - 60*mm);
+    const metaShort = Object.entries(D.meta).map(([k,v]) => k === "Age" ? `${parseFloat(v)} 歲` : k === "Sex" ? ({Male:"男",Female:"女"}[v] || v) : v);
+    $("info").textContent = [`${mm} 分 ${ss} 秒`, D.fmt === "new" ? `掉包 ${(100*lost/(D.n+lost)).toFixed(1)}%` : "舊版 CSV", ...metaShort].join(" · ");
+    $("info").title = s.split("\n").slice(1).join("\n");
+    $("fileName").textContent = fileName; $("fileName").title = fileName;
+    document.body.classList.add("loaded");
     $("resetGap").disabled = D.fmt !== "new";
     ["play","seek","rerun","calBtn"].forEach(id => $(id).disabled = false);
-    setCal(null);
-    RES = []; draw();
+    $("calBtn").title = "";
+    RES = []; CAL = null; calStart = null;
+    if (calText) sendCalib(); else calUi();
+    draw();
   }
+  else if (m.type === "calib"){
+    CAL = m.c;
+    const a = CAL.align;
+    calStart = a ? D.t[Math.min(a.row, D.n-1)] : tMin();
+    let s = `${calName}：${CAL.n} 樣本（${(CAL.n/FS).toFixed(1)} s）· `;
+    s += a ? `自動對齊到主 CSV 第 ${calStart.toFixed(2)} 秒（${a.method}${Number.isFinite(a.score) ? `，${a.method.includes("互相關") ? "相關" : "PPG 吻合"} ${a.score.toFixed(2)}` : ""}）`
+           : "找不到對應位置，先從 0 秒開始，請手動輸入秒數";
+    s += CAL.bias ? ` · GyroBias 取自第 ${CAL.biasRow+1} 筆` : " · 校正 CSV 沒有 GyroBias 欄，bias 自行估計";
+    const good = a && a.ok;
+    const how = !a ? "" : a.method.includes("PPG") && a.ok ? "精準對齊" : a.method.startsWith("依 Time") ? "依 Time 對齊" : "波形比對";
+    const short = !a ? `⚠ ${calName}：找不到對應位置，請手動輸入秒數`
+      : good ? `✓ ${calName} · ${how}，第 ${calStart.toFixed(2)} 秒起`
+      : a.method.startsWith("依 Time") ? `⚠ ${calName} · Time 在第 ${calStart.toFixed(2)} 秒，但 PPG 對不上，可能不是同一次錄製`
+      : `⚠ ${calName} · 對齊信心低，請確認秒數`;
+    calUi(short, s, good ? "ok" : "warn"); draw();
+  }
+  else if (m.type === "calibError"){ CAL = null; calStart = null; calUi("⚠ " + m.msg, "", "warn"); draw(); }
   else if (m.type === "results"){
-    hideProg(); RES = m.res;
+    hideProg(); RES = m.res; resVer++;
     RES_T = Float64Array.from(RES, r => D.t[Math.max(0, r.endIdx)]);
     $("export").disabled = false;
-    stats(); draw();
+    draw();
   }
 };
 
 // ---------------- 播放
 const tMin = () => D ? D.t[0] : 0, tMax = () => D ? D.t[D.n-1] : 0;
 function setCur(t){ if (!D) return; cur = Math.max(tMin(), Math.min(tMax(), t)); draw(); }
-function stop(){ playing = false; $("play").textContent = "▶ 播放"; }
+function stop(){ playing = false; $("play").textContent = "▶"; $("play").setAttribute("aria-label","播放"); }
 $("play").onclick = () => {
   if (!D) return;
   if (playing) { stop(); return; }
-  if (cur >= tMax() - 1e-6) cur = tMin() + (+$("win").value);
-  playing = true; $("play").textContent = "⏸ 暫停"; lastTs = performance.now(); requestAnimationFrame(tick);
+  if (cur >= tMax() - 1e-6) cur = tMin() + winSec;
+  playing = true; $("play").textContent = "❚❚"; $("play").setAttribute("aria-label","暫停"); lastTs = performance.now(); requestAnimationFrame(tick);
 };
 function tick(ts){
   if (!playing) return;
@@ -949,7 +1471,11 @@ function tick(ts){
   if (playing) requestAnimationFrame(tick);
 }
 $("seek").oninput = e => setCur(tMin() + (e.target.value/1000) * (tMax()-tMin()));
-["win","filt"].forEach(id => $(id).addEventListener("change", draw));
+$("win").addEventListener("change", e => { if (e.target.value !== "custom") setWin(+e.target.value); });
+$("showGaps").addEventListener("change", draw);
+$("viewSel").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+  waveView = b.dataset.v; for (const x of $("viewSel").children) x.classList.toggle("on", x === b); draw(); });
+$("filt").addEventListener("change", draw);
 document.addEventListener("keydown", e => {
   if (!D || /INPUT|SELECT/.test(document.activeElement.tagName) && document.activeElement.type !== "range") return;
   if (e.code === "Space"){ e.preventDefault(); $("play").click(); }
@@ -957,30 +1483,40 @@ document.addEventListener("keydown", e => {
   else if (e.code === "ArrowLeft"){ e.preventDefault(); setCur(cur - (e.shiftKey?10:1)); }
 });
 window.addEventListener("resize", draw);
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { _css.clear(); draw(); });
 
 // 波形拖曳平移 / 滾輪縮放
 const wave = $("wave");
 let dragX = null, dragCur = 0;
 wave.addEventListener("pointerdown", e => { dragX = e.clientX; dragCur = cur; wave.setPointerCapture(e.pointerId); stop(); });
-wave.addEventListener("pointermove", e => { if (dragX === null) return; const W = wave.clientWidth - 70; setCur(dragCur - (e.clientX - dragX) / W * (+$("win").value)); });
+wave.addEventListener("pointermove", e => { if (dragX === null) return; const W = wave.clientWidth - 70; setCur(dragCur - (e.clientX - dragX) / W * winSec); });
 wave.addEventListener("pointerup", () => dragX = null);
+// 一般滾輪 = 捲動頁面；Ctrl/⌘ + 滾輪 或 觸控板捏合 = 平滑縮放；Shift + 滾輪 或 水平滑動 = 平移
 wave.addEventListener("wheel", e => {
-  e.preventDefault();
-  const sel = $("win"), opts = [...sel.options].map(o=>o.value), i = opts.indexOf(sel.value);
-  sel.value = opts[Math.max(0, Math.min(opts.length-1, i + (e.deltaY > 0 ? 1 : -1)))]; draw();
+  if (!D) return;
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+  const dx = (e.shiftKey ? e.deltaY : e.deltaX) * unit, dy = e.deltaY * unit;
+  if (e.ctrlKey || e.metaKey){
+    e.preventDefault(); stop();
+    setWin(winTarget * Math.exp(Math.max(-120, Math.min(120, dy)) * 0.004));
+  } else if (e.shiftKey || Math.abs(dx) > Math.abs(dy)){
+    e.preventDefault(); stop();
+    setCur(cur + dx / Math.max(1, wave.clientWidth - 70) * winSec);
+  }
 }, {passive:false});
-// 趨勢點擊跳轉
-const trend = $("trend");
-let tDrag = false;
-const trendSeek = e => { if (!D) return; const r = trend.getBoundingClientRect(), L = 56, W = r.width - L - 14; setCur(tMin() + (e.clientX - r.left - L) / W * (tMax()-tMin())); };
-trend.addEventListener("pointerdown", e => { tDrag = true; trend.setPointerCapture(e.pointerId); trendSeek(e); });
-trend.addEventListener("pointermove", e => tDrag && trendSeek(e));
-trend.addEventListener("pointerup", () => tDrag = false);
+function setWin(v){
+  const maxW = Math.max(1, Math.min(120, tMax() - tMin() || 120));
+  winTarget = Math.max(1, Math.min(maxW, v));
+  const sel = $("win"), preset = [...sel.options].find(o => o.value !== "custom" && Math.abs(+o.value - winTarget) < 0.05);
+  let cu = sel.querySelector('option[value="custom"]');
+  if (preset){ sel.value = preset.value; if (cu) cu.remove(); }
+  else { if (!cu){ cu = document.createElement("option"); cu.value = "custom"; sel.appendChild(cu); } cu.textContent = winTarget.toFixed(winTarget < 10 ? 1 : 0); sel.value = "custom"; }
+  draw();
+}
 
 // ---------------- 繪圖工具
 function prep(cv){
-  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +(cv.dataset.h || (cv.dataset.h = cv.getAttribute("height")));
   cv.style.height = h + "px";
   if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)) { cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
   const ctx = cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
@@ -995,12 +1531,17 @@ function niceTicks(lo, hi, n){
   return out;
 }
 const fmtTick = v => { const a = Math.abs(v); return a >= 1e5 ? (v/1000).toFixed(0)+"k" : a >= 1000 ? v.toFixed(0) : a >= 10 ? v.toFixed(1).replace(/\.0$/,"") : +v.toPrecision(3)+""; };
+function tagLabel(ctx, text, x, y){
+  ctx.font = "11px " + FONT; const w = ctx.measureText(text).width;
+  ctx.fillStyle = css("--panel"); ctx.globalAlpha = .88; ctx.fillRect(x - 4, y - 11, w + 8, 16); ctx.globalAlpha = 1;
+  ctx.fillStyle = css("--muted"); ctx.textAlign = "left"; ctx.fillText(text, x, y);
+}
 function frame(ctx, x, y, w, h, label){
   ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.strokeRect(x+.5, y+.5, w, h);
-  if (label){ ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.fillText(label, x + 6, y + 13); }
+  if (label){ ctx.fillStyle = css("--muted"); ctx.font = "11px " + FONT; ctx.textAlign = "left"; ctx.fillText(label, x + 6, y + 13); }
 }
 function yAxis(ctx, x, y, w, h, lo, hi, n=3){
-  ctx.font = "10.5px system-ui"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  ctx.font = "10.5px " + FONT; ctx.textAlign = "right"; ctx.textBaseline = "middle";
   for (const v of niceTicks(lo, hi, n)){
     const yy = y + h - (v - lo) / (hi - lo) * h; if (yy < y+2 || yy > y+h-2) continue;
     ctx.strokeStyle = css("--grid"); ctx.beginPath(); ctx.moveTo(x, Math.round(yy)+.5); ctx.lineTo(x+w, Math.round(yy)+.5); ctx.stroke();
@@ -1010,6 +1551,7 @@ function yAxis(ctx, x, y, w, h, lo, hi, n=3){
 }
 // min/max 抽稀畫線（波形）
 function drawSeries(ctx, t, y, i0, i1, x0, x1, X, Y, H, lo, hi, color){
+  const breakGaps = $("showGaps").checked;
   ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath();
   const sx = X.w / (x1 - x0), sy = H / (hi - lo);
   const px = i => X.x + (t[i] - x0) * sx, py = v => Y + H - (v - lo) * sy;
@@ -1017,7 +1559,7 @@ function drawSeries(ctx, t, y, i0, i1, x0, x1, X, Y, H, lo, hi, color){
   const flush = () => { if (col < 0) return; ctx.lineTo(col, py(mn)); ctx.lineTo(col, py(mx)); };
   for (let i = i0; i < i1; i++){
     const v = y[i]; if (!Number.isFinite(v)) { flush(); col = -1; started = false; continue; }
-    if (t[i] - prevT > 1.5/FS && started){ flush(); col = -1; started = false; } // 掉包處斷線
+    if (breakGaps && t[i] - prevT > 1.5/FS && started){ flush(); col = -1; started = false; } // 顯示掉包時才斷線（否則直線帶過）
     prevT = t[i];
     const c = Math.floor(px(i));
     if (!started){ ctx.moveTo(px(i), py(v)); started = true; col = c; mn = mx = v; continue; }
@@ -1037,147 +1579,497 @@ function rangeOf(arrs, i0, i1){
 // ---------------- 波形
 function drawWave(){
   const {ctx, w, h} = prep(wave);
-  if (!D){ ctx.fillStyle = css("--muted"); ctx.font = "13px system-ui"; ctx.textAlign = "center"; ctx.fillText("尚未載入 CSV", w/2, h/2); return; }
-  const winSel = +$("win").value, span = tMax() - tMin(); let x0, x1;
+  if (!D){ ctx.fillStyle = css("--muted"); ctx.font = "13px " + FONT; ctx.textAlign = "center"; ctx.fillText("尚未載入 CSV", w/2, h/2); return; }
+  const winSel = winSec, span = tMax() - tMin(); let x0, x1;
   if (span <= winSel){ x0 = tMin(); x1 = tMax(); } else { x1 = Math.max(cur, tMin() + winSel); x0 = x1 - winSel; }
   const win = (x1 - x0) || 1;
   const i0 = Math.max(0, lowerBound(D.t, x0) - 1), i1 = Math.min(D.n, lowerBound(D.t, x1) + 1);
   const L = 56, R = 14, X = {x: L, w: w - L - R};
   const bp = $("filt").value === "bp", c = D.cols;
   const panels = [
-    {label: bp ? "ECG（5–20 Hz 帶通）" : "ECG（原始）", ser: [[bp && D.ecgBp ? D.ecgBp : c.ECG, css("--ecg")]], r: 1, ecg: true},
-    {label: bp ? "PPG IR（0.8–8 Hz 帶通，向下 = 收縮期）" : "PPG IR（原始）", ser: [[bp ? D.irBp : c.PPG_IR, css("--ir")]], r: 1},
-    {label: bp ? "PPG RED（0.8–8 Hz 帶通）" : "PPG RED（原始）", ser: [[bp ? D.redBp : c.PPG_RED, css("--red")]], r: 1},
-    {label: "ACC X / Y / Z", ser: [[c.ACC_X, css("--ax")], [c.ACC_Y, css("--ay")], [c.ACC_Z, css("--az")]], r: 1},
+    {label: bp ? "ECG（mV，同 App 畫面）" : "ECG（原始）", ser: [[bp && D.ecgBp ? D.ecgBp : c.ECG, css("--ecg")]], r: 1, ecg: true},
+    {label: bp ? "PPG IR（同 App 畫面）" : "PPG IR（原始）", ser: [[bp ? D.irBp : c.PPG_IR, css("--ir")]], r: 1},
+    {label: bp ? "PPG RED（同 App 畫面）" : "PPG RED（原始）", ser: [[bp ? D.redBp : c.PPG_RED, css("--red")]], r: 1},
+    {label: "ACC X / Y / Z（mg）", ser: [[c.ACC_X, css("--ax")], [c.ACC_Y, css("--ay")], [c.ACC_Z, css("--az")]], r: 1, key: "acc"},
+    {label: "GYRO X / Y / Z（°/s）", ser: [[c.GYRO_X, css("--ax")], [c.GYRO_Y, css("--ay")], [c.GYRO_Z, css("--az")]], r: 1, key: "gyro"},
   ];
+  panels[0].key = "ecg"; panels[1].key = "ir"; panels[2].key = "red";
+  // 只看某一種：選到的面板用滿整個高度，方便深入觀察
+  const SHOW = {all: ["ecg", "ir", "red", "acc"], ecg: ["ecg"], ppg: ["ir", "red"], ir: ["ir"], red: ["red"], imu: ["acc", "gyro"]}[waveView];
+  for (let k = panels.length - 1; k >= 0; k--) if (!SHOW.includes(panels[k].key) || (panels[k].key === "ecg" && !D.hasEcg)) panels.splice(k, 1);
+  if (!panels.length){ ctx.fillStyle = css("--muted"); ctx.font = "13px " + FONT; ctx.textAlign = "center"; ctx.fillText("這個 CSV 沒有 ECG 欄位", w/2, h/2); return; }
   const gapH = 10, top = 4, bottom = 22, totalR = panels.reduce((s,p)=>s+p.r,0);
   const ph = (h - top - bottom - gapH*(panels.length-1)) / totalR;
   let y = top;
   for (const p of panels){
     const H = ph * p.r;
     let [lo, hi] = rangeOf(p.ser.map(s=>s[0]), i0, i1);
-    // 帶通暫態（開頭）會把刻度撐爆 → 用 1–99 百分位
-    if (bp && !p.label.startsWith("ACC")) { const v = []; const a = p.ser[0][0]; const st = Math.max(1, Math.floor((i1-i0)/4000));
-      for (let i=i0;i<i1;i+=st) if (Number.isFinite(a[i])) v.push(a[i]); v.sort((a,b)=>a-b);
-      if (v.length > 20){ const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)], pad=(q9-q1)*.15||1; lo = q1-pad; hi = q9+pad; } }
+    // 縱軸範圍：包含所有正常數值（波峰尖端一定完整畫出），只排除明顯離群的異常點
+    //   以 0.5–99.5 百分位寬度為基準，超出它 4 倍寬以外的點（例如封包錯誤突然掉到 0）才算異常；異常點一定標示
+    let outN = 0;
+    { const v = [], st = Math.max(1, Math.floor((i1-i0)/3000));
+      for (const [a] of p.ser) for (let i=i0;i<i1;i+=st) if (Number.isFinite(a[i])) v.push(a[i]);
+      v.sort((a,b)=>a-b);
+      if (v.length > 20){
+        const q1 = v[Math.floor(v.length*.005)], q9 = v[Math.floor(v.length*.995)];
+        const spread = Math.max(q9 - q1, Math.abs(q9) * 0.01, 1e-6), fLo = q1 - 4*spread, fHi = q9 + 4*spread;
+        let mn = Infinity, mx = -Infinity;
+        for (const [a] of p.ser) for (let i=i0;i<i1;i++){ const x = a[i]; if (!Number.isFinite(x)) continue;
+          if (x < fLo || x > fHi) { outN++; continue; } if (x < mn) mn = x; if (x > mx) mx = x; }
+        if (mx > mn){ const pad = (mx - mn) * .08; lo = mn - pad; hi = mx + pad; }
+        else { lo = mn - 1; hi = mx + 1; }
+      } }
     frame(ctx, X.x, y, X.w, H, "");
-    yAxis(ctx, X.x, y, X.w, H, lo, hi, 3);
+    yAxis(ctx, X.x, y, X.w, H, lo, hi, H > 300 ? 8 : H > 150 ? 5 : 3);
     ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, H); ctx.clip();
     for (const [arr, col] of p.ser) drawSeries(ctx, D.t, arr, i0, i1, x0, x1, X, y, H, lo, hi, col);
+    for (const a of ANN){ if (a.t1 < x0 || a.t0 > x1) continue; const col = annTypeOf(a.type)[2];
+      const xa = X.x + (a.t0 - x0) / win * X.w, xb = X.x + (a.t1 - x0) / win * X.w;
+      if (a.t1 > a.t0){ ctx.fillStyle = col; ctx.globalAlpha = .12; ctx.fillRect(xa, y, xb - xa, H); ctx.globalAlpha = 1; }
+      ctx.strokeStyle = col; ctx.lineWidth = a.id === annEditing ? 2 : 1.3; ctx.beginPath(); ctx.moveTo(xa, y); ctx.lineTo(xa, y + H); ctx.stroke();
+      if (panels.indexOf(p) === 0){ const lbl = annTypeOf(a.type)[1] + (a.note ? "：" + a.note.slice(0, 18) + (a.note.length > 18 ? "…" : "") : "");
+        ctx.font = "600 11px " + FONT; const tw = ctx.measureText(lbl).width;
+        ctx.fillStyle = col; ctx.globalAlpha = .92; ctx.fillRect(xa + 2, y + 20, tw + 10, 17); ctx.globalAlpha = 1;
+        ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText(lbl, xa + 7, y + 32); } }
+    if (p.key === "ecg" && ECGA && $("ecgA").checked){
+      const A = ECGA, arr = p.ser[0][0], j0 = lowerBound(A.bt, x0), j1 = lowerBound(A.bt, x1);
+      const pxT = t => X.x + (t - x0) / win * X.w, pyV = v => y + H - (v - lo) / (hi - lo) * H;
+      ctx.font = "600 10.5px " + FONT; ctx.textAlign = "center";
+      for (let j=j0;j<j1;j++){
+        const xx = pxT(A.bt[j]), vv = arr[A.b[j]], yy = Number.isFinite(vv) ? Math.max(y + 8, Math.min(y + H - 4, pyV(vv))) : y + 10;
+        ctx.fillStyle = css(A.irr[j] ? "--hold" : "--red");
+        ctx.beginPath(); ctx.moveTo(xx, yy - 3); ctx.lineTo(xx - 4.5, yy - 11); ctx.lineTo(xx + 4.5, yy - 11); ctx.closePath(); ctx.fill();
+        if (j > 0 && Number.isFinite(A.rr[j]) && win <= 20){
+          const xm = (pxT(A.bt[j-1]) + xx) / 2, lbl = Math.round(A.rr[j] * 1000) + (A.irr[j] ? " 不規則" : "");
+          ctx.fillStyle = css(A.irr[j] ? "--hold" : "--muted"); ctx.fillText(lbl, xm, y + H - 6);
+        }
+      }
+    }
     // 掉包
     ctx.strokeStyle = css("--gap"); ctx.setLineDash([3,3]);
-    for (const g of D.gaps){ const gx = X.x + (g.t + 0.5/FS - x0) / win * X.w; if (gx >= X.x && gx <= X.x + X.w){ ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y+H); ctx.stroke(); } }
+    if ($("showGaps").checked) for (const g of D.gaps){ const gx = X.x + (g.t + 0.5/FS - x0) / win * X.w; if (gx >= X.x && gx <= X.x + X.w){ ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y+H); ctx.stroke(); } }
     ctx.setLineDash([]);
     ctx.restore();
-    ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "left";
-    ctx.fillText(p.label, X.x + 6, y + 13);
+    tagLabel(ctx, p.label, X.x + 8, y + 14);
+    if (outN){
+      const t = `↕ ${outN} 個異常點（明顯離群）未畫在範圍內`; ctx.font = "600 11px " + FONT; const tw = ctx.measureText(t).width;
+      ctx.fillStyle = css("--panel"); ctx.globalAlpha = .9; ctx.fillRect(X.x + X.w - tw - 12, y + 3, tw + 8, 16); ctx.globalAlpha = 1;
+      ctx.fillStyle = css("--hold"); ctx.textAlign = "right"; ctx.fillText(t, X.x + X.w - 8, y + 15);
+    }
     y += H + gapH;
   }
-  drawCalMark(ctx, x0, x1, X, top, h - top - bottom);
   // 時間軸
-  ctx.fillStyle = css("--muted"); ctx.font = "10.5px system-ui"; ctx.textAlign = "center";
+  ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
   for (const v of niceTicks(x0, x1, 8)){ const xx = X.x + (v - x0)/win*X.w; if (xx < X.x || xx > X.x+X.w) continue; ctx.fillText(v.toFixed(win <= 10 ? 1 : 0) + " s", xx, h - 6); }
   // 掉包說明（目前畫面）
-  const vis = D.gaps.filter(g => g.t >= x0 && g.t <= x1);
+  const vis = $("showGaps").checked ? D.gaps.filter(g => g.t >= x0 && g.t <= x1) : [];
   if (vis.length){ ctx.textAlign = "right"; ctx.fillStyle = css("--gap"); ctx.fillText("畫面內掉包：" + vis.map(g => g.missing + " 樣本").join("、"), X.x + X.w, h - 6); }
 }
 
 // ---------------- 趨勢
+// ---------------- SpO2 變化圖＋可信度色帶（靜態部分快取，每幀只畫游標）
+const trend = $("trend"), tip = $("tip");
+let trendCache = null, trendKey = "", resVer = 0;
+const TG = (w, h) => { const X = {x: 56, w: w - 56 - 14}, band = 14, top = 6, bottom = 22, gap = 12;
+  const avail = h - top - bottom - band - 8 - gap, h1 = Math.round(avail * .5), h2 = avail - h1;
+  return {X, top, plotH: h1, hrTop: top + h1 + gap, hrH: h2, bandY: top + h1 + gap + h2 + 8, band, bottom}; };
+const tpx = (t, X) => X.x + (t - tMin()) / ((tMax() - tMin()) || 1) * X.w;
 function drawTrend(){
   const {ctx, w, h} = prep(trend);
   if (!D) return;
-  const L = 56, R = 14, X = {x: L, w: w - L - R}, x0 = tMin(), x1 = tMax(), span = x1 - x0 || 1;
-  const px = t => X.x + (t - x0) / span * X.w;
-  const panels = [
-    {label: "SpO2 (%)", ser: [["spo2Raw", css("--muted"), 1, true], ["spo2Out", css("--accent"), 2]], minSpan: 6},
-    {label: "R", ser: [["r", css("--ir"), 1, true], ["rOut", css("--accent"), 2], ["rCOut", css("--az"), 1.6]], minSpan: 0.1},
-    {label: "HR (bpm)", ser: [["hr", css("--red"), 1.6], ["hrPpg", css("--ecg"), 1.2]], minSpan: 20},
-  ];
-  const gapH = 10, top = 4, bottom = 22, ph = (h - top - bottom - gapH*(panels.length-1)) / panels.length;
-  const stCol = {UPDATE: css("--st-update"), HOLD: css("--st-hold"), NO_OUTPUT: css("--st-no"), WARMUP: css("--st-warm")};
-  let y = top;
-  for (const p of panels){
-    // 範圍：用有效值的 1–99 百分位，避免單秒離群值壓扁曲線
-    const vals = []; for (const r of RES) for (const [k, , , dots] of p.ser) { if (dots) continue; const v = r[k]; if (Number.isFinite(v)) vals.push(v); }
-    vals.sort((a,b)=>a-b);
-    let lo, hi;
-    if (vals.length){ lo = vals[Math.floor(vals.length*.01)]; hi = vals[Math.floor(vals.length*.99)]; } else { lo = 0; hi = 1; }
-    if (hi - lo < p.minSpan){ const m = (hi+lo)/2; lo = m - p.minSpan/2; hi = m + p.minSpan/2; }
-    const pad = (hi-lo)*.1; lo -= pad; hi += pad;
-    // 狀態底色
-    for (let i = 0; i < RES.length; i++){
-      const xa = px(i ? RES_T[i-1] : RES_T[i] - 1), xb = px(RES_T[i]);
-      ctx.fillStyle = stCol[RES[i].status] || "transparent"; ctx.fillRect(xa, y, Math.max(1, xb - xa + .5), ph);
+  const dpr = window.devicePixelRatio || 1, key = [w, h, dpr, resVer, css("--bg")].join("|");
+  if (key !== trendKey){
+    trendCache = trendCache || document.createElement("canvas");
+    trendCache.width = Math.round(w*dpr); trendCache.height = Math.round(h*dpr);
+    const c2 = trendCache.getContext("2d"); c2.setTransform(dpr,0,0,dpr,0,0); c2.clearRect(0,0,w,h);
+    drawTrendStatic(c2, w, h); trendKey = key;
+  }
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(trendCache, 0, 0); ctx.restore();
+  const g = TG(w, h), xc = tpx(cur, g.X);
+  ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(tpx(cur - winSec, g.X), g.top, xc - tpx(cur - winSec, g.X), g.bandY + g.band - g.top); ctx.globalAlpha = 1;
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(xc, g.top); ctx.lineTo(xc, g.bandY + g.band); ctx.stroke();
+  for (const a of ANN){ const col = annTypeOf(a.type)[2], xa = tpx(a.t0, g.X), xb = tpx(a.t1, g.X);
+    if (a.t1 > a.t0){ ctx.fillStyle = col; ctx.globalAlpha = .12; ctx.fillRect(xa, g.top, Math.max(2, xb - xa), g.bandY + g.band - g.top); ctx.globalAlpha = 1; }
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(xa, g.top); ctx.lineTo(xa + 7, g.top + 4); ctx.lineTo(xa, g.top + 8); ctx.closePath(); ctx.fill();
+    ctx.fillRect(xa - .5, g.top, 1.2, g.bandY + g.band - g.top); }
+  if (!RES.length){ ctx.fillStyle = css("--muted"); ctx.font = "13px " + FONT; ctx.textAlign = "center"; ctx.fillText("計算中…", w/2, h/2); }
+}
+function drawTrendStatic(ctx, w, h){
+  const g = TG(w, h), X = g.X, px = t => tpx(t, X);
+  // 縱軸：依可信讀數決定，至少 6 %
+  const v = RES.filter(r => r.status === "UPDATE" && Number.isFinite(r.spo2Out)).map(r => r.spo2Out).sort((a,b)=>a-b);
+  let lo = v.length ? v[Math.floor(v.length*.01)] : 90, hi = v.length ? v[Math.floor(v.length*.99)] : 100;
+  if (hi - lo < 6){ const m = (hi + lo) / 2; lo = m - 3; hi = m + 3; }
+  const pad = (hi - lo) * .12; lo -= pad; hi += pad;
+  const py = s => g.top + g.plotH - (s - lo) / (hi - lo) * g.plotH;
+  frame(ctx, X.x, g.top, X.w, g.plotH, "");
+  ctx.font = "10.5px " + FONT; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const t of niceTicks(lo, hi, 4)){ const yy = py(t); if (yy < g.top + 4 || yy > g.top + g.plotH - 4) continue;
+    ctx.strokeStyle = css("--grid"); ctx.beginPath(); ctx.moveTo(X.x, Math.round(yy)+.5); ctx.lineTo(X.x + X.w, Math.round(yy)+.5); ctx.stroke();
+    ctx.fillStyle = css("--muted"); ctx.fillText(Math.round(t) + "%", X.x - 5, yy); }
+  ctx.textBaseline = "alphabetic";
+  // 可信度色帶
+  for (let i = 0; i < RES.length; i++){
+    const xa = px(i ? RES_T[i-1] : RES_T[i] - 1), xb = px(RES_T[i]);
+    ctx.fillStyle = css((REL[RES[i].status] || REL.WARMUP).col); ctx.globalAlpha = RES[i].status === "WARMUP" ? .35 : .85;
+    ctx.fillRect(xa, g.bandY, Math.max(1, xb - xa + .5), g.band);
+  }
+  ctx.globalAlpha = 1;
+  // SpO2 線：可信 = 實線；參考值（沿用前值）= 虛線，避免被當成新量到的數值
+  ctx.save(); ctx.beginPath(); ctx.rect(X.x, g.top, X.w, g.plotH); ctx.clip();
+  let prev = null;
+  for (let i = 0; i < RES.length; i++){
+    const r = RES[i], s = r.spo2Out;
+    if (!Number.isFinite(s) || (r.status !== "UPDATE" && r.status !== "HOLD")){ prev = null; continue; }
+    const p = [px(RES_T[i]), py(s)];
+    if (prev){
+      const hold = r.status === "HOLD";
+      ctx.strokeStyle = css(hold ? "--hold" : "--accent"); ctx.lineWidth = hold ? 1.4 : 2; ctx.setLineDash(hold ? [4, 3] : []);
+      ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
     }
-    frame(ctx, X.x, y, X.w, ph, "");
-    yAxis(ctx, X.x, y, X.w, ph, lo, hi, 3);
-    ctx.save(); ctx.beginPath(); ctx.rect(X.x, y, X.w, ph); ctx.clip();
-    for (const [k, col, lw, dots] of p.ser){
-      const py = v => y + ph - (v - lo)/(hi - lo) * ph;
-      if (dots){ ctx.fillStyle = col; ctx.globalAlpha = .55;
-        for (let i=0;i<RES.length;i++){ const v = RES[i][k]; if (Number.isFinite(v)) ctx.fillRect(px(RES_T[i])-1, py(v)-1, 2, 2); }
-        ctx.globalAlpha = 1; continue; }
-      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); let on = false;
-      for (let i=0;i<RES.length;i++){ const v = RES[i][k];
-        if (!Number.isFinite(v)) { on = false; continue; }
-        if (!on){ ctx.moveTo(px(RES_T[i]), py(v)); on = true; } else ctx.lineTo(px(RES_T[i]), py(v)); }
+    prev = p;
+  }
+  ctx.setLineDash([]); ctx.restore();
+  // 心率：ECG 與 PPG 各自每秒的值（量不到就留空，不沿用）
+  { const all = []; for (const r of RES){ if (Number.isFinite(r.hrEcg)) all.push(r.hrEcg); if (Number.isFinite(r.hrPpgNow)) all.push(r.hrPpgNow); }
+    all.sort((a,b)=>a-b);
+    let hl = all.length ? all[Math.floor(all.length*.01)] : 50, hh = all.length ? all[Math.floor(all.length*.99)] : 100;
+    if (hh - hl < 30){ const m = (hh + hl) / 2; hl = m - 15; hh = m + 15; }
+    const hp = (hh - hl) * .1; hl -= hp; hh += hp;
+    const hy = v => g.hrTop + g.hrH - (v - hl) / (hh - hl) * g.hrH;
+    frame(ctx, X.x, g.hrTop, X.w, g.hrH, "");
+    ctx.font = "10.5px " + FONT; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (const t of niceTicks(hl, hh, 4)){ const yy = hy(t); if (yy < g.hrTop + 4 || yy > g.hrTop + g.hrH - 4) continue;
+      ctx.strokeStyle = css("--grid"); ctx.beginPath(); ctx.moveTo(X.x, Math.round(yy)+.5); ctx.lineTo(X.x + X.w, Math.round(yy)+.5); ctx.stroke();
+      ctx.fillStyle = css("--muted"); ctx.fillText(Math.round(t), X.x - 5, yy); }
+    ctx.textBaseline = "alphabetic";
+    ctx.save(); ctx.beginPath(); ctx.rect(X.x, g.hrTop, X.w, g.hrH); ctx.clip();
+    for (const [k, col, lw] of [["hrPpgNow", "--ir", 1.4], ["hrEcg", "--ecg", 1.8]]){
+      ctx.strokeStyle = css(col); ctx.lineWidth = lw; ctx.beginPath(); let on = false;
+      for (let i = 0; i < RES.length; i++){ const v = RES[i][k];
+        if (!Number.isFinite(v)){ on = false; continue; }
+        const x = px(RES_T[i]), y = hy(v);
+        if (!on){ ctx.moveTo(x, y); on = true; } else ctx.lineTo(x, y); }
       ctx.stroke();
+      // 單獨一秒的點也要看得到
+      ctx.fillStyle = css(col);
+      for (let i = 0; i < RES.length; i++){ const v = RES[i][k]; if (!Number.isFinite(v)) continue;
+        const pv = i ? RES[i-1][k] : NaN, nv = i < RES.length - 1 ? RES[i+1][k] : NaN;
+        if (!Number.isFinite(pv) && !Number.isFinite(nv)) ctx.fillRect(px(RES_T[i]) - 1.5, hy(v) - 1.5, 3, 3); }
     }
     ctx.restore();
-    ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "left"; ctx.fillText(p.label, X.x + 6, y + 13);
-    y += ph + gapH;
+    tagLabel(ctx, "心率 (bpm)", X.x + 8, g.hrTop + 14);
   }
-  drawCalMark(ctx, x0, x1, X, top, h - top - bottom);
-  // 時間軸 + 游標 + 目前視窗
-  ctx.fillStyle = css("--muted"); ctx.font = "10.5px system-ui"; ctx.textAlign = "center";
-  { const tk = niceTicks(x0, x1, 10), st = tk.length > 1 ? tk[1] - tk[0] : 1, dec = st >= 1 ? 0 : st >= 0.1 ? 1 : 2;
-    for (const v of tk) ctx.fillText(v.toFixed(dec) + " s", px(v), h - 6); }
-  const win = +$("win").value;
-  ctx.fillStyle = css("--accent"); ctx.globalAlpha = .08; ctx.fillRect(px(cur - win), top, px(cur) - px(cur - win), h - top - bottom); ctx.globalAlpha = 1;
-  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), h - bottom); ctx.stroke();
-  if (!RES.length){ ctx.fillStyle = css("--muted"); ctx.font = "13px system-ui"; ctx.textAlign = "center"; ctx.fillText("計算中…", w/2, h/2); }
+  tagLabel(ctx, "SpO2", X.x + 8, g.top + 14);
+  // 時間軸
+  ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
+  const tk = niceTicks(tMin(), tMax(), 10), st = tk.length > 1 ? tk[1] - tk[0] : 1;
+  for (const t of tk) ctx.fillText(t.toFixed(st >= 1 ? 0 : 1) + " s", px(t), h - 6);
+  // 圖例比例
+  const cnt = {}; for (const r of RES) cnt[r.status] = (cnt[r.status] || 0) + 1;
+  const n = RES.length - (cnt.WARMUP || 0) || 1;
+  $("relLegend").innerHTML = ["UPDATE", "HOLD", "NO_OUTPUT"].map(k =>
+    `<span class="relchip"><b style="background:var(${REL[k].col})"></b>${REL[k].name} ${Math.round(100 * (cnt[k] || 0) / n)}%</span>`).join("") +
+    `<span class="relchip" style="color:var(--faint)">虛線 = 沿用前一次可信讀數</span>`;
+  const both = RES.filter(r => Number.isFinite(r.hrEcg) && Number.isFinite(r.hrPpgNow));
+  const mad = both.length ? both.reduce((s, r) => s + Math.abs(r.hrEcg - r.hrPpgNow), 0) / both.length : NaN;
+  $("relLegend").innerHTML += `<span class="relchip"><i style="background:var(--ecg);width:14px;height:3px;border-radius:2px;display:inline-block"></i>ECG 心率</span>` +
+    `<span class="relchip"><i style="background:var(--ir);width:14px;height:3px;border-radius:2px;display:inline-block"></i>PPG 心率</span>` +
+    `<span class="relchip" style="color:var(--muted)">${both.length ? `兩者平均差 ${mad.toFixed(1)} bpm（${both.length} 秒都有值）` : "沒有 ECG 和 PPG 同時有值的時段"}</span>`;
 }
+// 點選／拖曳跳轉；滑過顯示該秒狀態
+let tDrag = false;
+const trendT = e => { const r = trend.getBoundingClientRect(), g = TG(r.width, +trend.dataset.h || 200);
+  return tMin() + (e.clientX - r.left - g.X.x) / g.X.w * (tMax() - tMin()); };
+trend.addEventListener("pointerdown", e => { if (!D) return; tDrag = true; trend.setPointerCapture(e.pointerId); stop(); setCur(trendT(e)); });
+trend.addEventListener("pointerup", () => tDrag = false);
+trend.addEventListener("pointerleave", () => tip.classList.remove("on"));
+trend.addEventListener("pointermove", e => {
+  if (!D || !RES.length) return;
+  const t = trendT(e); if (tDrag) setCur(t);
+  const i = Math.min(RES.length - 1, Math.max(0, lowerBound(RES_T, t)));
+  const r = RES[i], name = (REL[r.status] || {}).name || r.status, why = relText(r);
+  const hb = v => Number.isFinite(v) ? Math.round(v) + " bpm" : "量不到";
+  tip.innerHTML = `<b>${RES_T[i].toFixed(0)} s · SpO2 ${Number.isFinite(r.spo2Out) ? Math.round(r.spo2Out) + "%" : "--"} · ${name}</b>${why ? "<br>" + why : ""}` +
+    `<br>ECG 心率 ${hb(r.hrEcg)} · PPG 心率 ${hb(r.hrPpgNow)}`;
+  const rc = trend.getBoundingClientRect(); tip.style.left = Math.max(120, Math.min(rc.width - 120, e.clientX - rc.left)) + "px"; tip.style.top = (e.clientY - rc.top) + "px";
+  tip.classList.add("on");
+});
+
+// ---------------- ECG 分析（R 波 → RR 間期 → 不規則提示、HRV）
+let ECGA = null;
+function analyzeBeats(){
+  const b = D.beats || new Int32Array(0), n = b.length;
+  const bt = Float64Array.from(b, k => D.t[k]), rr = new Float64Array(n).fill(NaN), irr = new Uint8Array(n);
+  const gapRows = D.gaps.map(g => g.row);
+  for (let j=1;j<n;j++){
+    const v = bt[j] - bt[j-1];
+    const gi = lowerBound(gapRows, b[j-1] + 1), hasGap = gi < gapRows.length && gapRows[gi] <= b[j];
+    if (v >= 0.3 && v <= 2.0 && !hasGap) rr[j] = v;         // 跨掉包或不合生理範圍的 RR 不算
+  }
+  for (let j=1;j<n;j++){ if (!Number.isFinite(rr[j])) continue;
+    const nb = []; for (let k=Math.max(1, j-5); k<=Math.min(n-1, j+5); k++) if (k !== j && Number.isFinite(rr[k])) nb.push(rr[k]);
+    if (nb.length < 4) continue; nb.sort((a,b)=>a-b); const md = nb[nb.length >> 1];
+    if (Math.abs(rr[j] - md) / md > 0.2) irr[j] = 1; }
+  return {b, bt, rr, irr};
+}
+function hrvStats(t0, t1){
+  const A = ECGA; if (!A || !A.b.length) return null;
+  const j0 = Math.max(1, lowerBound(A.bt, t0)), j1 = lowerBound(A.bt, t1 + 1e-9);
+  const nn = [], sd = []; let irrN = 0, beats = Math.max(0, j1 - j0);
+  for (let j=j0;j<j1;j++){
+    if (A.irr[j]) { irrN++; continue; }
+    if (!Number.isFinite(A.rr[j])) continue;
+    nn.push(A.rr[j]);
+    if (j > 1 && Number.isFinite(A.rr[j-1]) && !A.irr[j-1]) sd.push(A.rr[j] - A.rr[j-1]);
+  }
+  if (nn.length < 3) return {beats, irrN, nnN: nn.length};
+  const m = nn.reduce((a,b)=>a+b,0) / nn.length;
+  const sdnn = Math.sqrt(nn.reduce((a,b)=>a+(b-m)*(b-m),0) / (nn.length - 1));
+  const rmssd = sd.length ? Math.sqrt(sd.reduce((a,b)=>a+b*b,0) / sd.length) : NaN;
+  const pnn50 = sd.length ? 100 * sd.filter(d => Math.abs(d) > 0.05).length / sd.length : NaN;
+  return {beats, irrN, nnN: nn.length, hr: 60 / m, meanRR: m, sdnn, rmssd, pnn50, nnDur: nn.reduce((a,b)=>a+b,0)};
+}
+// LF/HF：正常 RR 以 4 Hz 線性內插、去趨勢，Welch（256 點 = 64 秒、重疊 50%、Hann），需 ≥ 5 分鐘
+function lfhf(){
+  const A = ECGA; if (!A) return null;
+  const tt = [], vv = [];
+  for (let j=1;j<A.b.length;j++) if (Number.isFinite(A.rr[j]) && !A.irr[j]){ tt.push(A.bt[j]); vv.push(A.rr[j]); }
+  if (tt.length < 10 || tt[tt.length-1] - tt[0] < 300) return null;
+  const fsI = 4, N = Math.floor((tt[tt.length-1] - tt[0]) * fsI), x = new Float64Array(N); let k = 0;
+  for (let i=0;i<N;i++){ const t = tt[0] + i / fsI; while (k < tt.length - 2 && tt[k+1] < t) k++; const a = (t - tt[k]) / ((tt[k+1] - tt[k]) || 1); x[i] = vv[k] + (vv[k+1] - vv[k]) * Math.max(0, Math.min(1, a)); }
+  const L = 256, hop = 128; let lf = 0, hf = 0, segs = 0;
+  for (let s0 = 0; s0 + L <= N; s0 += hop){
+    let mean = 0; for (let i=0;i<L;i++) mean += x[s0+i]; mean /= L;
+    for (let kk = 1; kk < L/2; kk++){
+      const f = kk * fsI / L; if (f < 0.04 || f > 0.4) continue;
+      let re = 0, im = 0;
+      for (let i=0;i<L;i++){ const w = 0.5 - 0.5*Math.cos(2*Math.PI*i/(L-1)), v = (x[s0+i] - mean) * w, ang = -2*Math.PI*kk*i/L; re += v*Math.cos(ang); im += v*Math.sin(ang); }
+      const pw = re*re + im*im; if (f < 0.15) lf += pw; else hf += pw;
+    }
+    segs++;
+  }
+  return segs && hf > 0 ? {ratio: lf / hf, lfPct: 100 * lf / (lf + hf), hfPct: 100 * hf / (lf + hf)} : null;
+}
+let lfhfCache = null;
+function renderEcgCard(){
+  const on = $("ecgA").checked && D && D.hasEcg;
+  $("ecgCard").classList.toggle("hide", !on);
+  if (!on || !ECGA) return;
+  const all = hrvStats(tMin(), tMax()), win = hrvStats(cur - 60, cur);
+  const c = (o, k, d, u = "") => o && Number.isFinite(o[k]) ? o[k].toFixed(d) + u : "--";
+  const rows = [["平均心率", "hr", 0, " bpm"], ["SDNN", "sdnn", 0, " ms", 1000], ["RMSSD", "rmssd", 0, " ms", 1000], ["pNN50", "pnn50", 1, " %"]];
+  const cell = (o, [_, k, d, u, sc]) => o && Number.isFinite(o[k]) ? (o[k] * (sc || 1)).toFixed(d) + u : "--";
+  const html = `<table><tr><th></th><th>目前視窗（前 60 秒）</th><th>整段</th></tr>` +
+    rows.map(r => `<tr><td>${r[0]}</td><td>${cell(win, r)}</td><td>${cell(all, r)}</td></tr>`).join("") +
+    `<tr><td>偵測到的心跳</td><td>${win ? win.beats : 0}</td><td>${all ? all.beats : 0}</td></tr>` +
+    `<tr><td>不規則心跳</td><td style="color:${win && win.irrN ? "var(--hold)" : "inherit"}">${win ? win.irrN : 0}</td><td style="color:${all && all.irrN ? "var(--hold)" : "inherit"}">${all ? all.irrN : 0}</td></tr>` +
+    `<tr><td>LF/HF</td><td style="color:var(--faint)">需 ≥ 5 分鐘</td><td>${lfhfCache ? `${lfhfCache.ratio.toFixed(2)}（LF ${lfhfCache.lfPct.toFixed(0)}%・HF ${lfhfCache.hfPct.toFixed(0)}%）` : "<span style=\"color:var(--faint)\">資料不足 5 分鐘</span>"}</td></tr></table>`;
+  if ($("hrvTbl").innerHTML !== html) $("hrvTbl").innerHTML = html;
+  drawTacho(); drawPoinc();
+}
+function drawTacho(){
+  const cv = $("tacho"), {ctx, w, h} = prep(cv), A = ECGA, X = {x: 46, w: w - 46 - 8}, top = 6, H = h - top - 20;
+  const v = []; for (let j=1;j<A.b.length;j++) if (Number.isFinite(A.rr[j])) v.push(A.rr[j]*1000);
+  if (!v.length){ ctx.fillStyle = css("--muted"); ctx.font = "12px " + FONT; ctx.textAlign = "center"; ctx.fillText("沒有偵測到心跳", w/2, h/2); return; }
+  // 範圍一定包含所有 RR（不規則的那幾拍正是要看的，不能被切掉）
+  v.sort((a,b)=>a-b); let lo = v[0], hi = v[v.length-1]; if (hi - lo < 200){ const m = (hi+lo)/2; lo = m - 100; hi = m + 100; } const pd = (hi-lo)*.12; lo -= pd; hi += pd;
+  const px = t => X.x + (t - tMin()) / ((tMax()-tMin()) || 1) * X.w, py = r => top + H - (r - lo) / (hi - lo) * H;
+  frame(ctx, X.x, top, X.w, H, ""); yAxis(ctx, X.x, top, X.w, H, lo, hi, 4);
+  ctx.save(); ctx.beginPath(); ctx.rect(X.x, top, X.w, H); ctx.clip();
+  ctx.strokeStyle = css("--ecg"); ctx.lineWidth = 1.2; ctx.beginPath(); let on = false;
+  for (let j=1;j<A.b.length;j++){ const r = A.rr[j]; if (!Number.isFinite(r) || A.irr[j]){ on = false; continue; } const x = px(A.bt[j]), y = py(r*1000); if (!on){ ctx.moveTo(x, y); on = true; } else ctx.lineTo(x, y); }
+  ctx.stroke();
+  ctx.fillStyle = css("--hold"); for (let j=1;j<A.b.length;j++) if (A.irr[j] && Number.isFinite(A.rr[j])){ ctx.beginPath(); ctx.arc(px(A.bt[j]), py(A.rr[j]*1000), 2.6, 0, 7); ctx.fill(); }
+  ctx.restore();
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(cur), top); ctx.lineTo(px(cur), top + H); ctx.stroke();
+  ctx.fillStyle = css("--muted"); ctx.font = "10.5px " + FONT; ctx.textAlign = "center";
+  for (const t of niceTicks(tMin(), tMax(), 6)) ctx.fillText(t.toFixed(0) + " s", px(t), h - 5);
+}
+function drawPoinc(){
+  const cv = $("poinc"), {ctx, w, h} = prep(cv), A = ECGA, S = Math.min(w, h), X0 = 40, Y0 = 6, L = S - X0 - 18;
+  const pts = []; for (let j=2;j<A.b.length;j++) if (Number.isFinite(A.rr[j]) && Number.isFinite(A.rr[j-1])) pts.push([A.rr[j-1]*1000, A.rr[j]*1000, A.bt[j], A.irr[j] || A.irr[j-1]]);
+  if (!pts.length) return;
+  const all = pts.flatMap(p => [p[0], p[1]]).sort((a,b)=>a-b); let lo = all[0], hi = all[all.length-1];
+  if (hi - lo < 200){ const m = (hi+lo)/2; lo = m - 100; hi = m + 100; } const pd = (hi-lo)*.1; lo -= pd; hi += pd;
+  const sx = v => X0 + (v - lo) / (hi - lo) * L, sy = v => Y0 + L - (v - lo) / (hi - lo) * L;
+  frame(ctx, X0, Y0, L, L, ""); yAxis(ctx, X0, Y0, L, L, lo, hi, 4);
+  ctx.strokeStyle = css("--line"); ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(sx(lo), sy(lo)); ctx.lineTo(sx(hi), sy(hi)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.save(); ctx.beginPath(); ctx.rect(X0, Y0, L, L); ctx.clip();
+  for (const [a, b, t, ir] of pts){ const inWin = t >= cur - 60 && t <= cur;
+    ctx.fillStyle = css(ir ? "--hold" : inWin ? "--accent" : "--muted"); ctx.globalAlpha = inWin || ir ? .9 : .35;
+    ctx.fillRect(sx(a) - 1.5, sy(b) - 1.5, 3, 3); }
+  ctx.globalAlpha = 1; ctx.restore();
+  ctx.fillStyle = css("--muted"); ctx.font = "10px " + FONT; ctx.textAlign = "center"; ctx.fillText("RRₙ (ms)", X0 + L/2, Y0 + L + 14);
+}
+$("ecgA").addEventListener("change", draw);
+$("tacho").addEventListener("pointerdown", e => { if (!D) return; const r = $("tacho").getBoundingClientRect(); stop();
+  setCur(tMin() + (e.clientX - r.left - 46) / (r.width - 54) * (tMax() - tMin())); });
+
+// ---------------- 標註：存成「錄製檔名_annotations.csv」（_PENDING／_UPLOADED 兩份共用同一個標註檔）
+const ANN_TYPES = [["noise", "雜訊／訊號不良", "#94a3b8"], ["arrhythmia", "心律不整（疑似）", "#dc2626"], ["motion", "動作", "#d97706"],
+  ["event", "事件（咳嗽、說話等）", "#7c3aed"], ["other", "其他", "#0891b2"]];
+const annTypeOf = k => ANN_TYPES.find(x => x[0] === k) || ANN_TYPES[ANN_TYPES.length - 1];
+$("annType").innerHTML = ANN_TYPES.map(([k, n]) => `<option value="${k}">${n}</option>`).join("");
+let ANN = [], annEditing = null, annDir = null, annDirOk = false, annSaveMsg = "", annSaveTimer = null;
+const annMem = {};
+const annBase = () => fileName.replace(/\.csv$/i, "").replace(/_(PENDING|UPLOADED)$/i, "");
+const annFileName = () => annBase() + "_annotations.csv";
+const fsOK = typeof window.showDirectoryPicker === "function";
+const escA = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const idb = (() => { let p = null; const open = () => p || (p = new Promise((res, rej) => { const r = indexedDB.open("vitalsign-replay", 1);
+  r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+  return { get: k => open().then(db => new Promise(res => { const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); })),
+           set: (k, v) => open().then(db => new Promise(res => { const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = () => res(); tx.onerror = () => res(); })) }; })();
+async function annCheckPerm(ask){
+  if (!annDir) { annDirOk = false; return false; }
+  try { let st = await annDir.queryPermission({mode: "readwrite"}); if (st !== "granted" && ask) st = await annDir.requestPermission({mode: "readwrite"}); annDirOk = st === "granted"; }
+  catch (e) { annDirOk = false; }
+  return annDirOk;
+}
+async function annPickDir(){
+  try { annDir = await window.showDirectoryPicker({id: "vitalsign-ann", mode: "readwrite"}); }
+  catch (e) { return; }
+  await idb.set("annDir", annDir).catch(() => {});
+  await annCheckPerm(true);
+  if (annDirOk && D){ const had = ANN.length; await annLoadFromDir(true); if (had) annScheduleSave(); }
+  annRender();
+}
+function annCsv(){
+  const q = v => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  const rows = ANN.slice().sort((a, b) => a.t0 - b.t0).map(a => [a.t0.toFixed(2), a.t1.toFixed(2), a.type, annTypeOf(a.type)[1], q(a.note || ""), a.created, q(fileName)].join(","));
+  return "\uFEFF" + "start_s,end_s,type,類別,備註,建立時間,錄製檔\n" + rows.join("\n") + "\n";
+}
+function annParse(text){
+  text = text.replace(/^\uFEFF/, ""); const out = [], rows = []; let cell = "", inQ = false, row = [];
+  for (let i=0;i<text.length;i++){ const ch = text[i];
+    if (inQ){ if (ch === '"'){ if (text[i+1] === '"'){ cell += '"'; i++; } else inQ = false; } else cell += ch; }
+    else if (ch === '"') inQ = true;
+    else if (ch === ","){ row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r"){ if (ch === "\r" && text[i+1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += ch; }
+  if (cell || row.length){ row.push(cell); rows.push(row); }
+  const h = rows.shift() || [], ix = k => h.indexOf(k);
+  for (const r of rows){ const t0 = parseFloat(r[ix("start_s")]), t1 = parseFloat(r[ix("end_s")]); if (!Number.isFinite(t0)) continue;
+    out.push({id: Math.random().toString(36).slice(2), t0, t1: Number.isFinite(t1) ? t1 : t0, type: r[ix("type")] || "other", note: r[ix("備註")] || "", created: r[ix("建立時間")] || ""}); }
+  return out;
+}
+async function annLoadFromDir(merge){
+  if (!annDirOk) return;
+  try { const fh = await annDir.getFileHandle(annFileName()); const got = annParse(await (await fh.getFile()).text());
+    if (merge){ for (const a of got) if (!ANN.some(b => Math.abs(b.t0 - a.t0) < 1e-6 && b.note === a.note && b.type === a.type)) ANN.push(a); }
+    else ANN = got;
+    annSaveMsg = `已讀取 ${annFileName()}（${got.length} 筆）`; }
+  catch (e) { if (!merge) ANN = []; annSaveMsg = ""; }
+}
+function annScheduleSave(){
+  annMem[annBase()] = ANN;
+  clearTimeout(annSaveTimer);
+  annSaveTimer = setTimeout(annSave, 400);
+  annRender();
+}
+async function annSave(){
+  if (!annDir || !annDirOk){ annRender(); return; }
+  try { const fh = await annDir.getFileHandle(annFileName(), {create: true}); const w = await fh.createWritable(); await w.write(annCsv()); await w.close();
+    const d = new Date(), p = n => String(n).padStart(2, "0"); annSaveMsg = `已自動儲存 ${annFileName()}（${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}）`; }
+  catch (e) { annSaveMsg = "⚠ 儲存失敗：" + (e && e.message || e) + "（請重新選擇資料夾）"; annDirOk = false; }
+  annRender();
+}
+async function annOnLoad(){
+  annEditing = null; ANN = annMem[annBase()] ? annMem[annBase()].slice() : [];
+  if (annDir && !annDirOk) await annCheckPerm(false);
+  if (annDirOk) await annLoadFromDir(ANN.length > 0);
+  annRender(); draw();
+}
+function annRender(){
+  const sv = $("annSave");
+  let html;
+  if (!fsOK) html = `<span class="warn">這個瀏覽器不能直接存到資料夾（請用 Chrome 或 Edge），請用下方「下載標註 CSV」</span>`;
+  else if (!annDir) html = `<span>儲存位置：尚未選擇</span><button type="button" id="annPick">選擇儲存資料夾…</button>`;
+  else if (!annDirOk) html = `<span class="warn">📁 ${escA(annDir.name)}：需要重新授權才能儲存</span><button type="button" id="annGrant">授權</button><button type="button" id="annPick">換資料夾…</button>`;
+  else html = `<span class="ok">📁 ${escA(annDir.name)}</span><span>${escA(annSaveMsg || "修改後會自動儲存為 " + annFileName())}</span><button type="button" class="ghost" id="annPick">換資料夾…</button>`;
+  if (sv.dataset.h !== html){ sv.innerHTML = html; sv.dataset.h = html; }
+  const pick = $("annPick"); if (pick) pick.onclick = annPickDir;
+  const gr = $("annGrant"); if (gr) gr.onclick = async () => { await annCheckPerm(true); if (annDirOk){ await annLoadFromDir(true); annScheduleSave(); } annRender(); };
+  const list = ANN.slice().sort((a, b) => a.t0 - b.t0);
+  const lh = list.length ? list.map(a => { const ty = annTypeOf(a.type);
+    return `<div class="annitem${annEditing === a.id ? " on" : ""}" data-id="${a.id}"><i style="background:${ty[2]}"></i>` +
+      `<div><div><b>${escA(ty[1])}</b> <span class="at">${a.t1 > a.t0 ? `${a.t0.toFixed(1)}–${a.t1.toFixed(1)} s` : a.t0.toFixed(1) + " s"}</span></div>${a.note ? `<div class="an">${escA(a.note)}</div>` : ""}</div>` +
+      `<button type="button" class="ghost" data-edit="${a.id}">編輯</button></div>`; }).join("")
+    : `<div class="annempty">還沒有標註。播放或拖到想標的地方，按「＋ 在目前時間加標註」。</div>`;
+  if ($("annList").dataset.h !== lh){ $("annList").innerHTML = lh; $("annList").dataset.h = lh; }
+  $("annEdit").classList.toggle("hide", !annEditing);
+}
+function annOpen(a){
+  annEditing = a.id; $("annType").value = a.type; $("annT0").value = a.t0.toFixed(2); $("annT1").value = a.t1.toFixed(2); $("annNote").value = a.note || "";
+  annRender(); $("annNote").focus();
+}
+const annCur = () => ANN.find(a => a.id === annEditing);
+function annApply(){
+  const a = annCur(); if (!a) return;
+  const t0 = parseFloat($("annT0").value), t1 = parseFloat($("annT1").value);
+  if (Number.isFinite(t0)) a.t0 = Math.max(tMin(), Math.min(tMax(), t0));
+  a.t1 = Number.isFinite(t1) ? Math.max(a.t0, Math.min(tMax(), t1)) : a.t0;
+  a.type = $("annType").value; a.note = $("annNote").value.trim();
+  annScheduleSave(); draw();
+}
+$("annAdd").onclick = () => { if (!D) return; stop();
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  const a = {id: Math.random().toString(36).slice(2), t0: cur, t1: cur, type: "other", note: "",
+    created: `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`};
+  ANN.push(a); annOpen(a); annScheduleSave(); draw(); };
+["annType", "annT0", "annT1"].forEach(id => $(id).addEventListener("change", annApply));
+$("annNote").addEventListener("input", annApply);
+$("annNote").addEventListener("keydown", e => e.stopPropagation());
+$("annToCur").onclick = () => { $("annT1").value = cur.toFixed(2); annApply(); };
+$("annDone").onclick = () => { annApply(); annEditing = null; annRender(); draw(); };
+$("annDel").onclick = () => { const a = annCur(); if (!a) return; if (!confirm("刪除這筆標註？")) return;
+  ANN = ANN.filter(x => x !== a); annEditing = null; annScheduleSave(); draw(); };
+$("annList").addEventListener("click", e => { const ed = e.target.closest("[data-edit]"); const it = e.target.closest(".annitem"); if (!it) return;
+  const a = ANN.find(x => x.id === it.dataset.id); if (!a) return;
+  if (ed) { annOpen(a); return; }
+  stop(); setCur(Math.min(tMax(), (a.t1 > a.t0 ? a.t1 : a.t0) + Math.min(2, winSec * 0.2))); });
+function dl(text, name){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], {type: "text/csv"})); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+$("annDown").onclick = e => { e.preventDefault(); if (!D) return; dl(annCsv(), annFileName()); };
+$("annUpLink").onclick = e => { e.preventDefault(); $("annUp").click(); };
+$("annUp").onchange = async () => { const f = $("annUp").files[0]; if (!f || !D) return; const got = annParse(await f.text());
+  for (const a of got) if (!ANN.some(b => Math.abs(b.t0 - a.t0) < 1e-6 && b.note === a.note)) ANN.push(a); $("annUp").value = ""; annScheduleSave(); draw(); };
+$("beatsExport").onclick = async () => {
+  if (!ECGA) return; const A = ECGA, name = annBase() + "_rpeaks.csv";
+  const lines = ["beat,time_s,row,rr_ms,irregular,hr_bpm"];
+  for (let j=0;j<A.b.length;j++){ const r = A.rr[j]; lines.push([j+1, A.bt[j].toFixed(4), A.b[j], Number.isFinite(r) ? (r*1000).toFixed(1) : "", A.irr[j], Number.isFinite(r) ? (60/r).toFixed(1) : ""].join(",")); }
+  const text = "\uFEFF" + lines.join("\n") + "\n";
+  if (annDir && (annDirOk || await annCheckPerm(true))){
+    try { const fh = await annDir.getFileHandle(name, {create: true}); const w = await fh.createWritable(); await w.write(text); await w.close();
+      annSaveMsg = `已匯出 ${name}`; annRender(); return; } catch (e) {}
+  }
+  dl(text, name);
+};
+idb.get("annDir").then(async h => { if (h){ annDir = h; await annCheckPerm(false); } annRender(); }).catch(() => annRender());
+annRender();
 
 // ---------------- 讀值
 const f = (v, d) => Number.isFinite(v) ? v.toFixed(d) : "--";
 function readout(){
   if (!RES.length || !D) return;
   let i = lowerBound(RES_T, cur + 1e-9) - 1;
-  const set = (id, s) => $(id).textContent = s;
-  if (i < 0){ set("roSpo2", "--"); $("roStatus").innerHTML = ""; return; }
+  const set = txt;
+  if (i < 0){ set("roSpo2", "--"); set("roHrE", "--"); set("roHrP2", "--"); if ($("roStatus").innerHTML) $("roStatus").innerHTML = ""; return; }
   const r = RES[i];
-  set("roSpo2", Number.isFinite(r.spo2Out) ? `${r.spo2Out.toFixed(1)} -> ${Math.round(r.spo2Out)}` : "--");
+  set("roSpo2", Number.isFinite(r.spo2Out) ? `${Math.round(r.spo2Out)}` : "--");
   const col = {UPDATE: css("--ok"), HOLD: css("--hold"), NO_OUTPUT: css("--bad"), WARMUP: css("--warm")}[r.status];
-  $("roStatus").innerHTML = `<span class="badge" style="background:${col}">${r.status}</span>`;
-  set("roR", f(r.rOut, 3)); set("roR1", f(r.r, 4)); set("roRC", f(r.rCOut, 3));
-  set("roHr", f(r.hr, 0) + " bpm"); set("roHrP", f(r.hrPpg, 0) + " bpm");
-  set("roMethod", r.method || "--"); set("roEcg", r.ecgState || "--"); set("roReason", r.reason || "—");
-  set("roTc", r.t.toFixed(1) + " s（演算法時間）");
-}
-function stats(){
-  const cnt = {}; for (const r of RES) cnt[r.status] = (cnt[r.status]||0) + 1;
-  const up = RES.filter(r => r.status === "UPDATE");
-  const so = RES.map(r => r.spo2Out).filter(Number.isFinite).sort((a,b)=>a-b);
-  const md = a => a.length ? (a.length%2 ? a[a.length>>1] : (a[a.length/2-1]+a[a.length/2])/2) : NaN;
-  const ro = up.map(r => r.rOut).sort((a,b)=>a-b), rc = RES.map(r=>r.rCOut).filter(Number.isFinite).sort((a,b)=>a-b);
-  // 最長 HOLD
-  let longest = 0, run = 0; for (const r of RES){ if (r.status === "HOLD") { run++; longest = Math.max(longest, run); } else run = 0; }
-  const reasons = {}; for (const r of RES) if (r.status !== "UPDATE" && r.status !== "WARMUP" && r.reason) for (const s of r.reason.split("、")) reasons[s] = (reasons[s]||0)+1;
-  const top = Object.entries(reasons).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  const n = RES.length - (cnt.WARMUP||0);
-  const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
-  $("stats").innerHTML = `<div class="lbl" style="margin-bottom:4px">整段統計（不含 WARMUP）</div><table>` +
-    row("UPDATE", `${cnt.UPDATE||0}（${n ? (100*(cnt.UPDATE||0)/n).toFixed(0) : 0}%）`) +
-    row("HOLD", `${cnt.HOLD||0}（最長 ${longest} 秒）`) + row("NO_OUTPUT（--）", cnt.NO_OUTPUT||0) +
-    row("SpO2_out 中位數", f(md(so), 1)) + row("SpO2_out 範圍", so.length ? `${so[0].toFixed(1)} ~ ${so[so.length-1].toFixed(1)}` : "--") +
-    row("R_out 中位數", f(md(ro), 3)) + row("R_C_out 中位數", f(md(rc), 3)) +
-    top.map(([k,v]) => row("無效：" + k, v)).join("") + `</table>`;
+  const stName = (REL[r.status] || {}).name || r.status;
+  const badge = `<span class="badge" style="background:${col}">${stName}</span>`;
+  if ($("roStatus").innerHTML !== badge) $("roStatus").innerHTML = badge;
+  // 兩種心率都只顯示這一秒真的量到的值（量不到就 --，不沿用舊值）
+  set("roHrE", f(r.hrEcg, 0)); set("roHrP2", f(r.hrPpgNow, 0));
+  set("roReason", relShort(r)); $("roReason").title = relText(r);
 }
 $("export").onclick = () => {
   const q = v => Number.isFinite(v) ? v : "";
-  const hdr = "display_time_s,t_center_s,status,HR_bpm,HR_td_bpm,HR_naive_bpm,R,SpO2_raw,SpO2_out,method,reason,ecg_state,HR_ppg_bpm,profile,R_out,R_C,R_C_out";
+  const hdr = "display_time_s,t_center_s,status,HR_bpm,HR_td_bpm,HR_naive_bpm,R,SpO2_raw,SpO2_out,method,reason,ecg_state,HR_ppg_bpm,profile,R_out,R_C,R_C_out,HR_ecg_now_bpm,HR_ppg_now_bpm";
   const lines = RES.map((r,i) => [RES_T[i].toFixed(4), r.t.toFixed(2), r.status, q(r.hr), q(r.hrTd), q(r.hrNaive), q(r.r), q(r.spo2Raw), q(r.spo2Out),
-    r.method, r.reason, r.ecgState, q(r.hrPpg), r.profile, q(r.rOut), q(r.rC), q(r.rCOut)].join(","));
+    r.method, r.reason, r.ecgState, q(r.hrPpg), r.profile, q(r.rOut), q(r.rC), q(r.rCOut), q(r.hrEcg), q(r.hrPpgNow)].join(","));
   const blob = new Blob(["﻿" + hdr + "\n" + lines.join("\n")], {type: "text/csv"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
   a.download = fileName.replace(/\.csv$/i, "") + "_spo2_replay.csv"; a.click();
@@ -1255,7 +2147,7 @@ void main(){ vec3 lightDir = normalize(vec3(0.3, 1.0, 0.8)); float diff = max(do
     gl.bindVertexArray(null); count = m.I.length; radius = m.radius;
   }
   function render(valid, q){
-    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +(cv.dataset.h || (cv.dataset.h = cv.getAttribute("height")));
     cv.style.height = h + "px";
     if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)){ cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
     gl.viewport(0, 0, cv.width, cv.height);
@@ -1278,38 +2170,51 @@ void main(){ vec3 lightDir = normalize(vec3(0.3, 1.0, 0.8)); float diff = max(do
 if (GL3){
   GL3.setMesh(builtinMesh());
   if (location.protocol !== "file:") fetch("FinalBaseMesh.obj").then(r => r.ok ? r.text() : Promise.reject()).then(t => {
-    const m = parseObj(t); if (m.I.length){ GL3.setMesh(m); $("objInfo").textContent = `FinalBaseMesh.obj（${m.P.length/3} 頂點、${m.I.length/3} 三角形）`; draw(); }
+    const m = parseObj(t); if (m.I.length){ GL3.setMesh(m); draw(); }
   }).catch(() => {});
-} else $("objInfo").textContent = "這個瀏覽器不支援 WebGL2";
-$("objBtn").onclick = () => $("objFile").click();
-$("objFile").onchange = () => { const f = $("objFile").files[0]; if (!f || !GL3) return;
-  f.text().then(t => { const m = parseObj(t); if (!m.I.length){ $("objInfo").textContent = "OBJ 裡沒有面"; return; }
-    GL3.setMesh(m); $("objInfo").textContent = `${f.name}（${m.P.length/3} 頂點、${m.I.length/3} 三角形）`; draw(); }); };
+}
 function drawImu(){
-  if (!GL3) return;
-  const S = imuAt();
-  if (!S){ GL3.render(false, null); ["imSrc","imState","imBias","imQ","imRoll","imPitch","imYaw","imAcc","imGyro"].forEach(id => $(id).textContent = D ? "（CSV 沒有 ACC/GYRO 欄）" : "--"); return; }
-  const q = S.q, v = S.valid, im = S.cal ? CAL : D.imu;
+  if (!GL3){ txt("imState", "這個瀏覽器不支援 WebGL2"); return; }
+  const im = D && D.imu;
+  // 目前時間落在校正 CSV 範圍內 → 用校正 CSV；否則用主 CSV
+  let src = null;
+  if (CAL && calStart != null && cur >= calStart && cur - calStart <= CAL.t[CAL.n-1] + 1/FS){
+    const j = Math.min(Math.max(lowerBound(CAL.t, cur - calStart), 0), CAL.n - 1);
+    src = {cal: true, Q: CAL.Q, valid: CAL.valid, i: j, acc: CAL.acc, gyro: CAL.gyro, bias: CAL.bias, biasRow: CAL.biasRow, calibDoneTime: CAL.calibDoneTime};
+  } else if (im){
+    const i = Math.min(Math.max(lowerBound(D.t, cur), 0), D.n - 1);   // 同 Python searchsorted
+    const c = D.cols;
+    src = {cal: false, Q: im.Q, valid: im.valid, i, acc: [c.ACC_X, c.ACC_Y, c.ACC_Z], gyro: [c.GYRO_X, c.GYRO_Y, c.GYRO_Z], bias: im.bias, biasRow: im.biasRow, calibDoneTime: im.calibDoneTime};
+  }
+  if (!src){ GL3.render(false, null); ["imState","imBias","imQ","imRoll","imPitch","imYaw","imAcc","imGyro"].forEach(id => $(id).textContent = D ? "（CSV 沒有 ACC/GYRO 欄）" : "--"); return; }
+  const i = src.i, q = [src.Q[4*i], src.Q[4*i+1], src.Q[4*i+2], src.Q[4*i+3]], v = !!src.valid[i];
   GL3.render(v, q);
-  const deg = r => (r*180/Math.PI).toFixed(1) + "°";
+  const deg = r => (Math.round(r*180/Math.PI) || 0) + "°";
   const [w, x, y, z] = q;
-  $("imSrc").textContent = S.src;
-  $("imState").textContent = v ? "有效" : "校正中…（顯示面朝前占位姿態）";
-  $("imBias").textContent = S.cal ? (im.bias ? `校正 CSV 第 ${im.biasRow+1} 筆：(${im.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` : "校正 CSV（自行估計）") : im.bias ? `CSV 第 ${im.biasRow+1} 筆：(${im.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` +
-    (im.biasRow > 0 ? "（一般 CSV：訊號未套用兩點校正 qCal，姿態為感測器座標，僅供參考）" : "") :
-    (im.calibDoneTime != null ? `自行估計（完成於 t=${im.calibDoneTime.toFixed(2)} s）` : "自行估計（靜止樣本不足，bias 從未有效）");
-  $("imQ").textContent = q.map(a => a.toFixed(4)).join(", ");
-  $("imRoll").textContent = deg(Math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y)));
-  $("imPitch").textContent = deg(Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x)))));
-  $("imYaw").textContent = deg(Math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z)));
+  const from = src.cal ? "校正 CSV" : (CAL ? "主 CSV（校正開始前）" : "主 CSV");
+  txt("imState", (v ? "" : "校正中… · ") + "資料來源：" + from);
+  txt("imBias", src.bias ? `${src.cal ? "校正 CSV" : "CSV"} 第 ${src.biasRow+1} 筆：(${src.bias.map(b=>b.toFixed(4)).join(", ")}) °/s` +
+    (!src.cal && src.biasRow > 0 ? "（一般 CSV：訊號未套用兩點校正 qCal，姿態為感測器座標，僅供參考）" : "") :
+    (src.calibDoneTime != null ? `自行估計（完成於 t=${src.calibDoneTime.toFixed(2)} s）` : "自行估計（靜止樣本不足，bias 從未有效）"));
+  txt("imQ", q.map(a => a.toFixed(4)).join(", "));
+  txt("imRoll", deg(Math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y))));
+  txt("imPitch", deg(Math.asin(Math.max(-1, Math.min(1, 2*(w*y - z*x))))));
+  txt("imYaw", deg(Math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z))));
   const f1 = a => Number.isFinite(a) ? a.toFixed(1) : "--";
-  $("imAcc").textContent = S.acc.map(f1).join(", ");
-  $("imGyro").textContent = S.gyr.map(a => Number.isFinite(a) ? a.toFixed(2) : "--").join(", ");
+  txt("imAcc", src.acc.map(a => f1(a[i])).join(", "));
+  txt("imGyro", src.gyro.map(a => Number.isFinite(a[i]) ? a[i].toFixed(2) : "--").join(", "));
 }
 
-function draw(){
-  drawWave(); drawTrend(); readout(); drawImu();
-  if (D){ $("tnow").textContent = `${cur.toFixed(2)} / ${tMax().toFixed(2)} s`;
+// 同一幀內多次要求重畫（拖曳滑桿、滾輪、播放）只畫一次
+let drawPending = false;
+function draw(){ if (drawPending) return; drawPending = true; requestAnimationFrame(() => { drawPending = false; drawNow(); }); }
+function drawNow(){
+  const now = performance.now(); frameDt = lastFrameT ? Math.min(100, now - lastFrameT) : 16; lastFrameT = now; animating = false;
+  const r = winTarget / winSec;
+  if (Math.abs(Math.log(r)) > 0.002){ winSec *= Math.pow(r, 1 - Math.exp(-frameDt / 70)); animating = true; } else winSec = winTarget;
+  drawWave(); drawTrend(); readout(); drawImu(); renderEcgCard();
+  if (animating) draw(); else lastFrameT = 0;
+  if (D){ const tn = `${cur.toFixed(2)} <span>/ ${tMax().toFixed(2)} s</span>`; if ($("tnow").innerHTML !== tn) $("tnow").innerHTML = tn;
     if (document.activeElement !== $("seek")) $("seek").value = Math.round((cur - tMin()) / ((tMax()-tMin())||1) * 1000); }
 }
 draw();
