@@ -270,6 +270,9 @@ details.more .kv{margin-top:8px}
 .annio a{color:var(--muted)}
 .librow .ln .ld{display:block;font-size:11px;font-weight:400;color:var(--faint);overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .librow .ldi{color:var(--faint)}
+#drop.demo-loading{cursor:progress;border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+#drop.demo-loading .dropbtns,#drop.demo-loading .dropalt,#drop.demo-loading .dropsub{visibility:hidden}
+#drop.demo-loading strong{font-size:17px;color:var(--accent)}
 </style>
 </head>
 <body>
@@ -2320,8 +2323,22 @@ draw();
 // ---------------- 範例資料（給廠商展示）：和 index.html 放在同一個資料夾，打開網址就自動載入
 const DEMO_FILES = ["data_13-EB_2026-10-30_10-18-00_PENDING[1].csv", "data_13-EB_2026-10-30_10-18-00_calibrated_PENDING[1].csv"];
 if (location.protocol !== "file:"){
-  Promise.all(DEMO_FILES.map(n => fetch(encodeURIComponent(n)).then(r => r.ok ? r.blob() : null).catch(() => null)))
+  // 範例約 15 MB，第一次打開要下載幾秒：先顯示「正在載入範例」，不要讓人以為沒反應
+  const dz = $("drop"), hd = dz.querySelector("strong"), oldHd = hd.textContent;
+  dz.classList.add("demo-loading"); hd.textContent = "正在載入範例資料…"; showProg(0.02);
+  let got = 0, total = 0;
+  const fetchOne = n => fetch(encodeURIComponent(n)).then(async r => {
+    if (!r.ok || !r.body) return r.ok ? r.blob() : null;
+    total += +r.headers.get("content-length") || 0;
+    const rd = r.body.getReader(), parts = [];
+    for (;;){ const {done, value} = await rd.read(); if (done) break; parts.push(value); got += value.length;
+      if (total) { showProg(Math.min(0.3, 0.3 * got / total)); hd.textContent = `正在載入範例資料… ${Math.round(100 * got / total)}%`; } }
+    return new Blob(parts);
+  }).catch(() => null);
+  Promise.all(DEMO_FILES.map(fetchOne))
     .then(blobs => {
+      dz.classList.remove("demo-loading"); hd.textContent = oldHd;
+      if (!blobs.some(Boolean)) hideProg();
       const files = [];
       blobs.forEach((b, i) => { if (!b) return; const f = new File([b], DEMO_FILES[i], {type: "text/csv"}); f._path = "範例/" + DEMO_FILES[i]; f._demo = true; files.push(f); });
       if (files.length) addFiles(files, "mix");
